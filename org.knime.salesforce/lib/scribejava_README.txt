@@ -1,0 +1,1 @@
+This plug-in makes use of the ScribeJava library, which is released by: Pablo Fernandez, https://github.com/scribejava/scribejava

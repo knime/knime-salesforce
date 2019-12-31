@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<knimeNode
+	icon="../../../../../../icons/salesforce_connect.png"
+	type="Manipulator" xmlns="http://knime.org/node/v4.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
+	<name>Salesforce SOQL</name>
+	<shortDescription>Perform a Salesforce Object Query</shortDescription>
+	<fullDescription>
+		<intro>
+			<p>
+				Perform a
+				<a
+					href="https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql.htm">Salesforce Object Query</a>.
+				The dialog uses the incoming authentication information to query the objects and fields of the data 
+				in Salesforce and allows the user to write a <i>SOQL</i>.
+			</p>
+		</intro>
+		<option name="Salesforce Objects">
+			The objects as available in Salesforce. The list is queried when the dialog is opened.
+		</option>
+		<option name="Object fields">
+			The fields defined for the selected object. Double-click the field to insert it into the SOQL Editor.
+		</option>
+		<option name="Flow Variables">
+			Flow variables defined at the input. Double-click to insert a placeholder into the SOQL Editor.
+		</option>
+		<option name="SOQL">
+			The Salesforce Object Query to be run during node execution.
+		</option>
+	</fullDescription>
+	<ports>
+		<inPort index="0" name="Authentication">
+			Salesforce Authentication Object
+		</inPort>
+		<outPort index="0" name="JSON Result">
+			Result set in a JSON column, to be further processed using one of the JSON
+			processing nodes.
+		</outPort>
+	</ports>
+</knimeNode>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<knimeNode icon="../../../../../../icons/salesforce_connect.png" type="Source"
+	xmlns="http://knime.org/node/v4.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
+	<name>Salesforce Authentication</name>
+	<shortDescription>Authenticate with Salesforce</shortDescription>
+	<fullDescription>
+		<intro>
+		<p>
+			Authenticate with Salesforce. Authentication currently only succeeds with KNIME's test instance on 
+			https://test.salesforce.com
+		</p>
+		<p></p>
+	    <p>
+			<b>Important:</b>
+			When choosing the <i>Node</i> credentials storage location,
+			the node saves a refresh token with access to your Microsoft account
+			(with the specified permissions) in the node settings. Before sharing
+			the workflow, you should clear your credentials in the node dialog.
+	    </p>
+			<p />
+		</intro>
+		<tab name="Authenticaion">
+			<option name="Authenticate">
+				Press this button to authentication with Salesforce.
+				A page will be opened in your browser, which will ask you to sign in
+				to your Salesforce account. Once you are logged in, you will be asked
+				to accept the permission requests of the KNIME Analytics Platform
+				application if you did not accept the permissions previously. If the
+				authentication succeeded, you will be redirected to a page that
+				states that the verification code has been received and that you may
+				close the window. The status in the node dialog will update to
+				"Authenticated".
+			</option>
+			<option name="Cancel">
+				Cancel a running authentication process.
+			</option>
+			<option name="Credentials Storage Location">
+				Select where authentication credentials should be stored:
+				<ul>
+				<li>
+					<b>Memory</b>
+					: The authentication credentials will be kept in memory. 
+					They are discarded when closing KNIME. 
+				</li>
+				<li>
+					<b>Local File</b>
+					: The authentication credentials will be saved and loaded to and from the selected
+					file. 
+				</li>
+				<li>
+					<b>Node</b>
+					: The authentication credentials will be saved in the node settings. If you choose this
+					option, the workflow will contain your authentication information after is has been saved. 
+					Thus, access to your Microsoft account will be available to others if you share the workflow. 
+				</li>
+			</ul>
+			</option>
+			<option name="Clear Selected Credentials">
+				Deletes the authentication credentials stored at the selected location.
+				If <i>Local File</i> was selected, the file will be deleted if
+				it contains previously stored credentials. Otherwise, the file will be left
+				untouched and an error is displayed. If <i>Node</i> was selected, the credentials will
+				be cleared from the node settings <b>not before</b> saving the workflow.
+			</option>
+			<option name="Clear All Credentials">
+				Deletes all stored authentication credentials. Also see description of 
+				<i>Clear Selected Credentials</i> button. In case you do not want to share your credentials
+				with this workflow, all credentials should be cleared beforehand. 
+			</option>
+		</tab>
+	</fullDescription>
+	<ports>
+		<outPort index="0" name="Salesforce Authentication">The authentication including the tokens to access remote resources.</outPort>
+ </ports>
+</knimeNode>
