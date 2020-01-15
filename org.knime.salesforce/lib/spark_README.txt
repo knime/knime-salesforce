@@ -1,1 +1,0 @@
-This plug-in makes use of the Spark Core library, which is released by: The Apache Software Foundation, https://github.com/apache/spark
