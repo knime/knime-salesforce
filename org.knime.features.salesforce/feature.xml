@@ -732,6 +732,7 @@ propagated with or for interoperation with KNIME.
          id="org.knime.salesforce"
          download-size="0"
          install-size="0"
-         version="0.0.0"/>
+         version="0.0.0"
+         unpack="false"/>
 
 </feature>
