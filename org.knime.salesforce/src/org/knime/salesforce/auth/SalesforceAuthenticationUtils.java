@@ -126,7 +126,7 @@ public class SalesforceAuthenticationUtils {
                     .apiSecret(CLIENT_SECRET) //
 //                    .defaultScope(scope.getScope()) //
                     .callback(OAUTH_CALLBACK_URL) //
-                    .build(SalesforceApi.sandbox());
+                    .build(SalesforceApi.instance());
 
             // Open the callback webserver
             final Service callbackServer = Service.ignite().port(OAUTH_CALLBACK_PORT);

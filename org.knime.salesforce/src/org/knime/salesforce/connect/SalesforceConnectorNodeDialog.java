@@ -98,7 +98,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
         m_testInstanceChecker = new JRadioButton("Use Test Instance (test.salesforce.com)");
         bg.add(m_productionInstanceChecker);
         bg.add(m_testInstanceChecker);
-        m_testInstanceChecker.doClick();
+        m_productionInstanceChecker.doClick();
         m_testInstanceChecker.setEnabled(false);
         m_productionInstanceChecker.setEnabled(false);
         addTab("Options", createOptionsPanel());

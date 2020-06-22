@@ -79,7 +79,7 @@ public class SalesforceAuthenticator implements Authenticator<SalesforceAuthenti
     private String m_error;
 
     /**
-     * Create a new AzureAD authenticator.
+     * Create a new authenticator.
      */
     public SalesforceAuthenticator() {
         m_listeners = new HashSet<>();
