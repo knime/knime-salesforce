@@ -44,23 +44,28 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Dec 30, 2019 (wiswedel): created
+ *   Jul 5, 2020 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings.sobjects;
+package org.knime.salesforce.rest;
 
 /**
- *
- * @author wiswedel
+ * An exception that is thrown if an error occurs during the communication with the Salesforce REST API.
  */
-public final class AllSObjects {
+@SuppressWarnings("serial")
+public class SalesforceResponseException extends Exception {
 
-    private SObjects sobjects;
-
-    /**
-     * @return the sObjects
+    /** New exception based on message and throwable.
+     * @param message The message
+     * @param cause The throwable
      */
-    public SObject[] getSObjects() {
-        return sobjects.getSobjects();
+    public SalesforceResponseException(final String message, final Throwable cause) {
+        super(message, cause);
     }
 
+    /** New exception based on a message.
+     * @param message The message
+     */
+    public SalesforceResponseException(final String message) {
+        super(message);
+    }
 }

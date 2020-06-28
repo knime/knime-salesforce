@@ -51,6 +51,7 @@ package org.knime.salesforce.auth;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Optional;
 
 import javax.ws.rs.core.UriBuilder;
 
@@ -72,9 +73,10 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
 public final class SalesforceAuthentication {
 
     /** Error message shown when auth object is no longer in memory. */
-    public static final String AUTH_NOT_CACHE_ERROR = "No authentication information available in in-memory cache, "
-        + "probably because the authentication node was configured to keep it in memory and the workflow was restored "
-        + "from disc (application restart)";
+    public static final String AUTH_NOT_CACHE_ERROR = "No authentication information available. "
+        + "Perform authentication in connector node.";
+
+    private static final String WEAK_ENCRYPTION_KEY = "u4d?:fnN,c";
 
     private final String m_accessToken;
 
@@ -85,6 +87,7 @@ public final class SalesforceAuthentication {
     private final ZonedDateTime m_refreshTokenCreatedWhen;
 
     private final String m_instanceURLString;
+
 
     /**
      * Create a new default {@link SalesforceAuthentication} with the given tokens.
@@ -99,13 +102,14 @@ public final class SalesforceAuthentication {
         this(instanceURLString, accessToken, tokensCreatedWhen, refreshToken, tokensCreatedWhen);
     }
 
-    private SalesforceAuthentication(final String instanceURLString, final String accessToken, final ZonedDateTime accessTokenCreatedWhen,
-        final String refreshToken, final ZonedDateTime refreshTokenCreatedWhen) {
+    private SalesforceAuthentication(final String instanceURLString, final String accessToken,
+        final ZonedDateTime accessTokenCreatedWhen, final String refreshToken,
+        final ZonedDateTime refreshTokenCreatedWhen) {
         m_instanceURLString = CheckUtils.checkArgumentNotNull(instanceURLString);
         m_accessToken = CheckUtils.checkArgumentNotNull(accessToken);
         m_accessTokenCreatedWhen = CheckUtils.checkArgumentNotNull(accessTokenCreatedWhen);
-        m_refreshToken = CheckUtils.checkArgumentNotNull(refreshToken);
-        m_refreshTokenCreatedWhen = CheckUtils.checkArgumentNotNull(refreshTokenCreatedWhen);
+        m_refreshToken = refreshToken;
+        m_refreshTokenCreatedWhen = refreshToken != null ? refreshTokenCreatedWhen : null;
     }
 
     /**
@@ -131,15 +135,15 @@ public final class SalesforceAuthentication {
     }
 
     /** @return the refresh token, not null. */
-    public String getRefreshToken() {
-        return m_refreshToken;
+    public Optional<String> getRefreshToken() {
+        return Optional.ofNullable(m_refreshToken);
     }
 
     /**
      * @return the timestamp the {@linkplain #getRefreshToken() refresh token} was assigned.
      */
-    public ZonedDateTime getRefreshTokenCreatedWhen() {
-        return m_refreshTokenCreatedWhen;
+    public Optional<ZonedDateTime> getRefreshTokenCreatedWhen() {
+        return Optional.ofNullable(m_refreshTokenCreatedWhen);
     }
 
     /**
@@ -166,9 +170,9 @@ public final class SalesforceAuthentication {
      */
     public void save(final NodeSettingsWO settings) {
         settings.addString("instanceURL", m_instanceURLString);
-        settings.addString("accessToken", m_accessToken);
+        settings.addPassword("accessTokenCrypt", WEAK_ENCRYPTION_KEY, m_accessToken);
         settings.addString("accessTokenCreatedWhen", toString(m_accessTokenCreatedWhen));
-        settings.addString("refreshToken", m_refreshToken);
+        settings.addPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY, m_refreshToken);
         settings.addString("refreshTokenCreatedWhen", toString(m_refreshTokenCreatedWhen));
     }
 
@@ -179,16 +183,18 @@ public final class SalesforceAuthentication {
      */
     public static SalesforceAuthentication load(final NodeSettingsRO settings) throws InvalidSettingsException {
         String instanceURLString = settings.getString("instanceURL");
-        String accessToken = settings.getString("accessToken");
-        ZonedDateTime accessTokenCreatedWhen = fromString(settings.getString("accessTokenCreatedWhen"));
-        String refreshToken = settings.getString("refreshToken");
-        ZonedDateTime refreshTokenCreatedWhen = fromString(settings.getString("refreshTokenCreatedWhen"));
+        String accessToken = settings.getPassword("accessTokenCrypt", WEAK_ENCRYPTION_KEY);
+        String atWhen = settings.getString("accessTokenCreatedWhen");
+        ZonedDateTime accessTokenCreatedWhen = atWhen != null ? fromString(atWhen): null;
+        String refreshToken = settings.getPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY);
+        String rtWhen = settings.getString("refreshTokenCreatedWhen");
+        ZonedDateTime refreshTokenCreatedWhen = rtWhen != null ? fromString(rtWhen) : null;
         return new SalesforceAuthentication(instanceURLString, accessToken, accessTokenCreatedWhen, refreshToken,
             refreshTokenCreatedWhen);
     }
 
     private static String toString(final ZonedDateTime zdt) {
-        return zdt.format(DateTimeFormatter.ISO_ZONED_DATE_TIME);
+        return zdt != null ? zdt.format(DateTimeFormatter.ISO_ZONED_DATE_TIME) : null;
     }
 
     private static ZonedDateTime fromString(final String str) throws InvalidSettingsException {
@@ -205,8 +211,8 @@ public final class SalesforceAuthentication {
         return String.format("m_accessToken=%s (%s) m_refreshToken=%s (%s), m_instanceURLString=%s", //
             m_accessToken.substring(0, 5) + "...", //
             m_accessTokenCreatedWhen.toString(), //
-            m_refreshToken.substring(0, 5) + "...", //
-            m_refreshTokenCreatedWhen.toString(), //
+            m_refreshToken != null ? (m_refreshToken.substring(0, 5) + "...") : "<none>", //
+            m_refreshTokenCreatedWhen != null ? m_refreshTokenCreatedWhen.toString() : "--", //
             m_instanceURLString);
     }
 

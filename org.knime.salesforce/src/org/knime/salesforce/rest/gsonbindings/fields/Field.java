@@ -44,126 +44,60 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Oct 9, 2019 (benjamin): created
+ *   Dec 30, 2019 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings;
+package org.knime.salesforce.rest.gsonbindings.fields;
 
-import java.util.Arrays;
+import java.util.Objects;
 
 /**
- * An error reported by the Power BI REST API.
  *
- * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
+ * @author wiswedel
  */
-public final class ErrorResponse {
+public final class Field implements Comparable<Field> {
 
-    private final Error error;
+    private String name;
+    private String label;
+    private String type;
 
-    private ErrorResponse(final Error e) {
-        error = e;
+    /**
+     * @return the name
+     */
+    public String getName() {
+        return name;
+    }
+    /**
+     * @return the label
+     */
+    public String getLabel() {
+        return label;
+    }
+    /**
+     * @return the type
+     */
+    public String getType() {
+        return type;
     }
 
     @Override
     public String toString() {
-        return getError().toString();
+        return getLabel() + " [" + getType() + "]";
     }
 
-    /**
-     * @return the error
-     */
-    public Error getError() {
-        return error;
+    @Override
+    public int compareTo(final Field o) {
+        String thisLabel = Objects.toString(label, "ZZZZ");
+        String otherLabel = Objects.toString(o.label, "ZZZZ");
+        return thisLabel.compareTo(otherLabel);
     }
 
-    /**
-     * An error message of Power BI.
-     *
-     * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
-     */
-    public static class Error {
-        private final String code;
-
-        private final String message;
-
-        private final Detail[] details;
-
-        private Error(final String c, final String m, final Detail[] d) {
-            code = c;
-            message = m;
-            details = d;
-        }
-
-        @Override
-        public String toString() {
-            return "Error: " + getMessage() + ", Code: " + getCode() + //
-                (getDetails() != null ? ", Details: " + Arrays.toString(getDetails()) : "");
-        }
-
-        /**
-         * Returns the error code.
-         *
-         * @return the error code
-         */
-        public String getCode() {
-            return code;
-        }
-
-        /**
-         * Returns the message
-         *
-         * @return the message
-         */
-        public String getMessage() {
-            // Replace html tags
-            return message.replaceAll("\\<.*?\\>", "");
-        }
-
-        /**
-         * Returns the details.
-         *
-         * @return the details
-         */
-        public Detail[] getDetails() {
-            return details;
-        }
+    public static Field of(final String name, final String label, final String type) {
+        Field result = new Field();
+        result.name = name;
+        result.label = label;
+        result.type = type;
+        return result;
     }
 
-    /**
-     * Details of an error message of Power BI.
-     *
-     * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
-     */
-    public static class Detail {
-        private final String message;
 
-        private final String target;
-
-        private Detail(final String m, final String t) {
-            message = m;
-            target = t;
-        }
-
-        @Override
-        public String toString() {
-            return getMessage() + " (Target: " + getTarget() + ")";
-        }
-
-        /**
-         * Returns the message.
-         *
-         * @return the message
-         */
-        public String getMessage() {
-            return message;
-        }
-
-        /**
-         * Returns the target.
-         *
-         * @return the target
-         */
-        public String getTarget() {
-            return target;
-        }
-    }
 }

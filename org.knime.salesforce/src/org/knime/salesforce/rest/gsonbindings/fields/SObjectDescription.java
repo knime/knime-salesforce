@@ -46,7 +46,7 @@
  * History
  *   Dec 30, 2019 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings.fields;
+package org.knime.salesforce.rest.gsonbindings.fields;
 
 /**
  *

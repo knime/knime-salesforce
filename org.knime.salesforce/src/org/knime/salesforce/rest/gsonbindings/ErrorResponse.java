@@ -44,60 +44,126 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Dec 30, 2019 (wiswedel): created
+ *   Oct 9, 2019 (benjamin): created
  */
-package org.knime.salesforce.rest.bindings.fields;
+package org.knime.salesforce.rest.gsonbindings;
 
-import java.util.Objects;
+import java.util.Arrays;
 
 /**
+ * An error reported by the Power BI REST API.
  *
- * @author wiswedel
+ * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
  */
-public final class Field implements Comparable<Field> {
+public final class ErrorResponse {
 
-    private String name;
-    private String label;
-    private String type;
+    private final Error error;
 
-    /**
-     * @return the name
-     */
-    public String getName() {
-        return name;
-    }
-    /**
-     * @return the label
-     */
-    public String getLabel() {
-        return label;
-    }
-    /**
-     * @return the type
-     */
-    public String getType() {
-        return type;
+    private ErrorResponse(final Error e) {
+        error = e;
     }
 
     @Override
     public String toString() {
-        return getLabel() + " [" + getType() + "]";
+        return getError().toString();
     }
 
-    @Override
-    public int compareTo(final Field o) {
-        String thisLabel = Objects.toString(label, "ZZZZ");
-        String otherLabel = Objects.toString(o.label, "ZZZZ");
-        return thisLabel.compareTo(otherLabel);
+    /**
+     * @return the error
+     */
+    public Error getError() {
+        return error;
     }
 
-    public static Field of(final String name, final String label, final String type) {
-        Field result = new Field();
-        result.name = name;
-        result.label = label;
-        result.type = type;
-        return result;
+    /**
+     * An error message of Salesforce
+     *
+     * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
+     */
+    public static class Error {
+        private final String code;
+
+        private final String message;
+
+        private final Detail[] details;
+
+        private Error(final String c, final String m, final Detail[] d) {
+            code = c;
+            message = m;
+            details = d;
+        }
+
+        @Override
+        public String toString() {
+            return "Error: " + getMessage() + ", Code: " + getCode() + //
+                (getDetails() != null ? ", Details: " + Arrays.toString(getDetails()) : "");
+        }
+
+        /**
+         * Returns the error code.
+         *
+         * @return the error code
+         */
+        public String getCode() {
+            return code;
+        }
+
+        /**
+         * Returns the message
+         *
+         * @return the message
+         */
+        public String getMessage() {
+            // Replace html tags
+            return message.replaceAll("\\<.*?\\>", "");
+        }
+
+        /**
+         * Returns the details.
+         *
+         * @return the details
+         */
+        public Detail[] getDetails() {
+            return details;
+        }
     }
 
+    /**
+     * Details of an error message of Salesforce
+     *
+     * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
+     */
+    public static class Detail {
+        private final String message;
 
+        private final String target;
+
+        private Detail(final String m, final String t) {
+            message = m;
+            target = t;
+        }
+
+        @Override
+        public String toString() {
+            return getMessage() + " (Target: " + getTarget() + ")";
+        }
+
+        /**
+         * Returns the message.
+         *
+         * @return the message
+         */
+        public String getMessage() {
+            return message;
+        }
+
+        /**
+         * Returns the target.
+         *
+         * @return the target
+         */
+        public String getTarget() {
+            return target;
+        }
+    }
 }

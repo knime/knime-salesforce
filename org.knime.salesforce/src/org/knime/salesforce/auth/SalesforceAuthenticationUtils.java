@@ -81,11 +81,11 @@ import spark.Service;
 public class SalesforceAuthenticationUtils {
 
     /** The consumer key / API key of the app registration (for KNIME AP) */
-    private static final String CLIENT_ID =
+    public static final String CLIENT_ID =
             "3MVG9LzKxa43zqdJIdD5755PBiXKqt29EVi.z6v_mIZbhn0rXJY62p.rUdyLti3mlMU0XR1CfoMjk4iQwXYlI";
 
     /** The consumer secret part of the app registration (for KNIME AP) */
-    private static final String CLIENT_SECRET = "678C2BF0272EC1D3E2A6C96AF6315BF14E1C79511728867A8CE7E2449D9BC837";
+    public static final String CLIENT_SECRET = "678C2BF0272EC1D3E2A6C96AF6315BF14E1C79511728867A8CE7E2449D9BC837";
 
     /** Only one OAuth flow can be in progress at one time. This value tracks if there is one in progress currently. */
     private static final AtomicBoolean OAUTH_IN_PROGRESS = new AtomicBoolean(false);
@@ -255,7 +255,8 @@ public class SalesforceAuthenticationUtils {
     public static SalesforceAuthentication refreshToken(final SalesforceAuthentication auth)
         throws AuthenticationException, InterruptedException {
         // Check if there is a refresh token
-        String refreshToken = auth.getRefreshToken();
+        String refreshToken = auth.getRefreshToken()
+            .orElseThrow(() -> new IllegalStateException("Refresh not to be called, no refresh token"));
 
         try (final OAuth20Service service =
             new ServiceBuilder(CLIENT_ID).build(SalesforceApi.sandbox())) {

@@ -50,14 +50,21 @@ package org.knime.salesforce.connect;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
 
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.ExecutionMonitor;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeModel;
+import org.knime.core.node.NodeSettings;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
@@ -65,17 +72,19 @@ import org.knime.core.node.util.CheckUtils;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
+import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.AuthType;
+import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
+import org.knime.salesforce.rest.SalesforceRESTUtil;
 
 /**
- * Salesforce Authentication node
+ * Salesforce Connector node model.
  *
- * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
- * @author David Kolb, KNIME GmbH, Konstanz, Germany
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceConnectorNodeModel extends NodeModel {
 
     private SalesforceConnectorNodeSettings m_settings;
+    private SalesforceAuthentication m_userNamePasswordAuthentication;
 
     SalesforceConnectorNodeModel() {
         super(new PortType[0], new PortType[] {SalesforceConnectionPortObject.TYPE});
@@ -88,28 +97,52 @@ final class SalesforceConnectorNodeModel extends NodeModel {
 
     private SalesforceConnectionPortObjectSpec configureInternal() throws InvalidSettingsException {
         // Check if the user is authenticated
-        SalesforceAuthentication authentication = CheckUtils.checkSettingNotNull(//
-            m_settings, "No configuration available").getAuthentication().orElse(null);
-        CheckUtils.checkSettingNotNull(authentication, "Not authenticated. Authenticate in the Node Configuration.");
-        return new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID());
+        CheckUtils.checkSettingNotNull(m_settings, "No configuration available");
+        if (m_settings.getAuthType() == AuthType.Interactive) {
+            Optional<SalesforceAuthentication> auth =
+                    InMemoryAuthenticationStore.getGlobalInstance().get(m_settings.getNodeInstanceID());
+            CheckUtils.checkSetting(auth.isPresent(), "Not authenticated (open configuration to do so)");
+            return new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID());
+        }
+        return null;
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec)
         throws Exception {
-        SalesforceConnectionPortObjectSpec spec = configureInternal();
-//        pushFlowVariable("instance-url", VariableType.StringType.INSTANCE, spec.getAuthentication().getInstanceURLString());
-//        pushFlowVariable("access-token", VariableType.StringType.INSTANCE, "Bearer " + spec.getAuthentication().getAccessToken());
-//        pushFlowVariableString("instance-url", spec.getAuthentication().getInstanceURLString());
-//        pushFlowVariableString("access-token", "Bearer " + spec.getAuthentication().getAccessToken());
+        SalesforceConnectionPortObjectSpec spec;
+        if (m_settings.getAuthType() == AuthType.UsernamePassword) {
+            SettingsModelAuthentication m = m_settings.getUsernamePasswortAuthenticationModel();
+            m_userNamePasswordAuthentication = SalesforceRESTUtil.authenticateUsingUserAndPassword(
+                m.getUserName(getCredentialsProvider()), m.getPassword(getCredentialsProvider()), m_settings
+                    .getPasswordSecurityToken(),
+                m_settings.getSalesforceInstanceType() == InstanceType.TestInstance);
+            InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(),
+                m_userNamePasswordAuthentication);
+            spec = new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID());
+        } else {
+            spec = configureInternal();
+        }
         return new PortObject[] {new SalesforceConnectionPortObject(spec)};
     }
 
 
     @Override
+    protected void reset() {
+        if (m_settings != null && m_settings.getAuthType() == AuthType.UsernamePassword) {
+            removeFromInMemoryCache();
+        }
+    }
+
+    @Override
+    protected void onDispose() {
+        removeFromInMemoryCache();
+    }
+
+    @Override
     protected void saveSettingsTo(final NodeSettingsWO settings) {
         try {
-            m_settings.saveSettingsTo(settings);
+            m_settings.saveSettingsInModel(settings);
         } catch (IOException | InvalidSettingsException ex) {
             throw new IllegalStateException(ex);
         }
@@ -117,49 +150,45 @@ final class SalesforceConnectorNodeModel extends NodeModel {
 
     @Override
     protected void validateSettings(final NodeSettingsRO settings) throws InvalidSettingsException {
-        try {
-            SalesforceConnectorNodeSettings.loadInModel(settings);
-        } catch (IOException ex) {
-            throw new InvalidSettingsException(ex.getMessage(), ex);
-        }
+        SalesforceConnectorNodeSettings.loadInModel(settings, true);
     }
 
     @Override
     protected void loadValidatedSettingsFrom(final NodeSettingsRO settings) throws InvalidSettingsException {
-        try {
-            m_settings = SalesforceConnectorNodeSettings.loadInModel(settings);
-            // this will be non-null if configured from the config dialog
-            SalesforceAuthentication auth = m_settings.getAuthentication() // saved in file or part of node settings
-                    .orElse(InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().get(
-                        m_settings.getNodeInstanceID()) // save 'in memory'
-                        .orElse(null)); // saved 'in memory' and app restarted
-            m_settings.setAuthentication(auth);
-            InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(), auth);
-        } catch (IOException ex) {
-            throw new InvalidSettingsException(ex.getMessage(), ex);
-        }
+        m_settings = SalesforceConnectorNodeSettings.loadInModel(settings, false);
     }
 
     @Override
     protected void loadInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
-        // Nothing to do
-
+        Path p = getInternalsPath(nodeInternDir);
+        if (Files.isRegularFile(p)) {
+            NodeSettingsRO load;
+            try (InputStream in = Files.newInputStream(p)) {
+                load = NodeSettings.loadFromXML(in);
+                m_userNamePasswordAuthentication = SalesforceAuthentication.load(load);
+                InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(),
+                    m_userNamePasswordAuthentication);
+            } catch (InvalidSettingsException ex) {
+                throw new IOException(ex);
+            }
+        }
     }
 
     @Override
     protected void saveInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
-        // Nothing to do
+        if (m_userNamePasswordAuthentication != null) {
+            NodeSettings save = new NodeSettings("authentication");
+            m_userNamePasswordAuthentication.save(save);
+            try (OutputStream out = Files.newOutputStream(getInternalsPath(nodeInternDir))) {
+                save.saveToXML(out);
+            }
+        }
     }
 
-    @Override
-    protected void reset() {
-    }
-
-    @Override
-    protected void onDispose() {
-        removeFromInMemoryCache();
+    private static Path getInternalsPath(final File nodeInternDir) {
+        return nodeInternDir.toPath().resolve("internals.xml");
     }
 
     private void removeFromInMemoryCache() {

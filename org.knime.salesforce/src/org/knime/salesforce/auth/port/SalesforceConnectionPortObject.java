@@ -138,7 +138,7 @@ public final class SalesforceConnectionPortObject extends AbstractSimplePortObje
 
     @Override
     protected void save(final ModelContentWO model, final ExecutionMonitor exec) throws CanceledExecutionException {
-
+        // all done in spec
     }
 
     @Override

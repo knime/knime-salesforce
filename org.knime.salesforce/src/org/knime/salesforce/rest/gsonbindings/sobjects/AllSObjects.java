@@ -46,49 +46,21 @@
  * History
  *   Dec 30, 2019 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings.sobjects;
-
-import java.util.Objects;
+package org.knime.salesforce.rest.gsonbindings.sobjects;
 
 /**
  *
  * @author wiswedel
  */
-public final class SObject implements Comparable<SObject> {
+public final class AllSObjects {
 
-    private String name;
-    private String label;
+    private SObjects sobjects;
 
     /**
-     * @return the name
+     * @return the sObjects
      */
-    public String getName() {
-        return name;
-    }
-    /**
-     * @return the label
-     */
-    public String getLabel() {
-        return label;
-    }
-
-    @Override
-    public int compareTo(final SObject o) {
-        String thisLabel = Objects.toString(label, "ZZZZZ");
-        String otherLabel = Objects.toString(o.label, "ZZZZZ");
-        return thisLabel.compareTo(otherLabel);
-    }
-
-    @Override
-    public String toString() {
-        return label;
-    }
-
-    public static SObject of(final String name, final String label) {
-        SObject result = new SObject();
-        result.name = name;
-        result.label = label;
-        return result;
+    public SObject[] getSObjects() {
+        return sobjects.getSobjects();
     }
 
 }

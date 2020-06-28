@@ -48,17 +48,7 @@
  */
 package org.knime.salesforce.connect;
 
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
 import java.io.IOException;
-import java.util.UUID;
-
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
 
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.InvalidSettingsException;
@@ -66,15 +56,11 @@ import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
-import org.knime.salesforce.auth.SalesforceAuthentication;
-import org.knime.salesforce.auth.SalesforceAuthenticator;
-import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
 
 /**
- * Dialog for the Send to Power BI node.
+ * Dialog for the Salesforce Connector node.
  *
- * @author Benjamin Wilhem, KNIME GmbH, Konstanz, Germany
- * @author David Kolb, KNIME GmbH, Konstanz, Germany
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceConnectorNodeDialog extends NodeDialogPane {
 
@@ -82,101 +68,47 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
 
     private SalesforceConnectorNodeSettings m_settings;
 
-    private final SalesforceAuthenticator m_authenticator;
+    private final AuthControllerPanel m_authControllerPanel;
+    private final InstanceTypePanel m_instanceTypePanel;
 
-    private OAuthSettingsPanel m_authPanel;
-
-    private final JRadioButton m_productionInstanceChecker;
-
-    private final JRadioButton m_testInstanceChecker;
-
+    @SuppressWarnings("serial")
     public SalesforceConnectorNodeDialog() {
-        m_authenticator = new SalesforceAuthenticator();
-        m_authPanel = new OAuthSettingsPanel(m_authenticator);
-        ButtonGroup bg = new ButtonGroup();
-        m_productionInstanceChecker = new JRadioButton("Use Production Instance (login.salesforce.com)");
-        m_testInstanceChecker = new JRadioButton("Use Test Instance (test.salesforce.com)");
-        bg.add(m_productionInstanceChecker);
-        bg.add(m_testInstanceChecker);
-        m_productionInstanceChecker.doClick();
-        m_testInstanceChecker.setEnabled(false);
-        m_productionInstanceChecker.setEnabled(false);
-        addTab("Options", createOptionsPanel());
-    }
-
-    private JPanel createOptionsPanel() {
-        final JPanel panel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.LINE_START;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 1;
-        gbc.weighty = 1;
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.weighty = 0;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-
-        // Authentication panel
-        m_authPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Authentication"));
-        panel.add(m_authPanel, gbc);
-
-        // Listeners to clear stored credentials
-        m_authPanel.addClearSelectedLocationListener(a -> {
-            CredentialsLocationType locationType = m_authPanel.getCredentialsSaveLocation();
-            try {
-                m_settings.clearAuthentication(locationType);
-            } catch (InvalidSettingsException ex) {
-                String msg =
-                    "Could not clear " + locationType.getShortText() + " credentials. Reason: " + ex.getMessage();
-                LOGGER.error(msg, ex);
+        m_instanceTypePanel = new InstanceTypePanel();
+        m_authControllerPanel = new AuthControllerPanel() {
+            @Override
+            void onClearedAllAuthentication() {
+                for (CredentialsLocationType clt : CredentialsLocationType.values()) {
+                    try {
+                        m_settings.clearAuthentication(clt);
+                    } catch (InvalidSettingsException ex) {
+                        String m = "Could not clear " + clt.getShortText() + " credentials. Reason: " + ex.getMessage();
+                        LOGGER.error(m, ex);
+                    }
+                }
             }
-        });
 
-        m_authPanel.addClearAllLocationListener(a -> {
-            for (CredentialsLocationType clt : CredentialsLocationType.values()) {
+            @Override
+            void onClearedInteractiveAuthentication(final CredentialsLocationType locationType) {
                 try {
-                    m_settings.clearAuthentication(clt);
+                    m_settings.clearAuthentication(locationType);
                 } catch (InvalidSettingsException ex) {
-                    String msg = "Could not clear " + clt.getShortText() + " credentials. Reason: " + ex.getMessage();
+                    String msg =
+                        "Could not clear " + locationType.getShortText() + " credentials. Reason: " + ex.getMessage();
                     LOGGER.error(msg, ex);
                 }
             }
-        });
-
-        JPanel instanceTypePanel = new JPanel(new GridLayout(0, 1));
-        instanceTypePanel
-            .setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "Instance Type"));
-        instanceTypePanel.add(m_productionInstanceChecker);
-        instanceTypePanel.add(m_testInstanceChecker);
-
-        gbc.gridy += 1;
-        gbc.weightx = 0;
-        panel.add(instanceTypePanel, gbc);
-
-        return panel;
+        };
+        addTab("Authentication", m_authControllerPanel);
+        addTab("Instance Type", m_instanceTypePanel);
     }
 
 
     @Override
     protected void saveSettingsTo(final NodeSettingsWO settings) throws InvalidSettingsException {
-        SalesforceAuthentication authentication = m_authenticator.getAuthentication();
-        m_settings.setAuthentication(authentication);
-        UUID nodeInstanceID = m_settings.getNodeInstanceID();
-        InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().put(nodeInstanceID, authentication);
-        CredentialsLocationType saveLocation = m_authPanel.getCredentialsSaveLocation();
-        m_settings.setCredentialsSaveLocation(saveLocation);
-        m_settings.setFilesystemLocation(m_authPanel.getFilesystemLocation());
-        InstanceType instanceType;
-        if (m_productionInstanceChecker.isSelected()) {
-            instanceType = InstanceType.ProductionInstance;
-        } else {
-            instanceType = InstanceType.TestInstance;
-        }
-        m_settings.setSalesforceInstanceType(instanceType);
-
+        m_authControllerPanel.saveSettingsTo(m_settings);
+        m_instanceTypePanel.saveSettingsTo(m_settings);
         try {
-            m_settings.saveSettingsTo(settings);
+            m_settings.saveSettingsInDialog(settings);
         } catch (IOException ex) {
             throw new InvalidSettingsException(ex.getMessage(), ex);
         }
@@ -185,17 +117,8 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
     @Override
     protected void loadSettingsFrom(final NodeSettingsRO settings, final DataTableSpec[] specs) {
         m_settings = SalesforceConnectorNodeSettings.loadInDialog(settings);
-        m_authPanel.setCredentialsSaveLocation(m_settings.getCredentialsSaveLocation());
-        m_authPanel.setFilesystemLocation(m_settings.getFilesystemLocation());
-        m_authenticator.setAuthentication(m_settings.getAuthentication().orElse(null));
-        switch (m_settings.getSalesforceInstanceType()) {
-            case ProductionInstance:
-                m_productionInstanceChecker.doClick();
-                break;
-            default:
-                m_testInstanceChecker.doClick();
-                break;
-        }
+        m_authControllerPanel.loadSettingsFrom(m_settings, getCredentialsProvider());
+        m_instanceTypePanel.loadSettingsFrom(m_settings);
     }
 
     @Override

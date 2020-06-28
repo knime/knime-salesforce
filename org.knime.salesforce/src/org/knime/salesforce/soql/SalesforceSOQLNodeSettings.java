@@ -48,26 +48,67 @@
  */
 package org.knime.salesforce.soql;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.util.StringUtil;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 
 /**
- *
- * @author wiswedel
+ * The configuration settings of the 'Salesforce SOQL' node.
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 public final class SalesforceSOQLNodeSettings {
 
+    /** Determines how the data is represented in a KNIME table. Currently both formats are JSON with a 'table' option
+     * potentially coming in the future.
+     * @see AbstractSOQLExecutor
+     */
+    public enum SOQLOutputRepresentation {
+        /** Raw JSON -- the JSON data unmodified in seperate rows (they return data in chunks if it's large). */
+        RAW("Raw JSON", "The raw data returned by the Salesforce REST API"),
+        /** The JSON split by 'records' (an array that is contained in the result). */
+        RECORDS("Records JSON", "The records of the SOQL as JSON, split into individual rows.");
+        // Table("Table", "The data returned by the Salesforce REST API, parsed and returned as individual columns");
+
+        private final String m_label;
+        private final String m_description;
+        /**
+         * @param label
+         * @param description
+         */
+        SOQLOutputRepresentation(final String label, final String description) {
+            m_label = label;
+            m_description = description;
+        }
+
+        String getLabel() {
+            return m_label;
+        }
+
+        String getDescription() {
+            return m_description;
+        }
+
+        static Optional<SOQLOutputRepresentation>from(final String name) {
+            return Arrays.stream(values()).filter(s -> s.name().equals(name)).findFirst();
+        }
+
+    }
     private String m_soql = "Select Id, Name from Account LIMIT 10";
     private String m_outputColumnName = "json";
+    private SOQLOutputRepresentation m_outputRepresentation = SOQLOutputRepresentation.RAW;
+    private boolean m_isOutputACounter = false;
 
     /**
      * @return the soql
      */
-    String getSOQL() {
+    public String getSOQL() {
         return m_soql;
     }
 
@@ -81,7 +122,7 @@ public final class SalesforceSOQLNodeSettings {
     /**
      * @return the outputColumnName
      */
-    String getOutputColumnName() {
+    public String getOutputColumnName() {
         return m_outputColumnName;
     }
 
@@ -92,10 +133,41 @@ public final class SalesforceSOQLNodeSettings {
         m_outputColumnName = outputColumnName;
     }
 
+    /**
+     * @return the isOutputACounter
+     */
+    public boolean isOutputAsCount() {
+        return m_isOutputACounter;
+    }
+
+    /**
+     * @param isOutputACounter the isOutputACounter to set
+     */
+    void setOutputAsCount(final boolean isOutputACounter) {
+        m_isOutputACounter = isOutputACounter;
+    }
+
+    /**
+     * @return the outputRepresentation
+     */
+    SOQLOutputRepresentation getOutputRepresentation() {
+        return m_outputRepresentation;
+    }
+
+    /**
+     * @param outputRepresentation the outputRepresentation to set
+     * @throws InvalidSettingsException If argument is null.
+     */
+    void setOutputRepresentation(final SOQLOutputRepresentation outputRepresentation) throws InvalidSettingsException {
+        m_outputRepresentation = CheckUtils.checkSettingNotNull(outputRepresentation, "Must not be null");
+    }
+
     void saveSettingsTo(final NodeSettingsWO settings) {
         if (StringUtils.isNotEmpty(m_soql)) {
             settings.addString("SOQL", m_soql);
             settings.addString("outputColumnName", m_outputColumnName);
+            settings.addString("outputRepresentation", m_outputRepresentation.name());
+            settings.addBoolean("outputAsCount", m_isOutputACounter);
         }
     }
 
@@ -104,12 +176,20 @@ public final class SalesforceSOQLNodeSettings {
         CheckUtils.checkSetting(StringUtil.isNotBlank(m_soql), "SOQL string must not be null or blank");
         m_outputColumnName = settings.getString("outputColumnName");
         CheckUtils.checkSetting(StringUtil.isNotBlank(m_outputColumnName), "column name must not be null or blank");
+        String outputRepresenationS = settings.getString("outputRepresentation");
+        m_outputRepresentation = SOQLOutputRepresentation.from(outputRepresenationS)
+            .orElseThrow(() -> new InvalidSettingsException("Invalid Output Represenation: " + outputRepresenationS));
+        m_isOutputACounter = settings.getBoolean("outputAsCount");
         return this;
     }
 
     SalesforceSOQLNodeSettings loadSettingsInDialog(final NodeSettingsRO settings) {
         m_soql = settings.getString("SOQL", "");
         m_outputColumnName = settings.getString("outputColumnName", "json");
+        String outputRepresenationS = settings.getString("outputRepresentation", null);
+        m_outputRepresentation =
+            SOQLOutputRepresentation.from(outputRepresenationS).orElse(SOQLOutputRepresentation.RAW);
+        m_isOutputACounter = settings.getBoolean("outputAsCount", false);
         return this;
     }
 

@@ -154,11 +154,14 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
                 .format(DateTimeFormatter.RFC_1123_DATE_TIME)).append("</td>\n");
             b.append("</tr>\n");
             b.append("<tr class=\"odd\">\n");
-            b.append("<td>Refresh Token</td><td>").append(auth.getRefreshToken().substring(0, 5)).append("...</td>\n");
+            b.append("<td>Refresh Token</td><td>")
+                .append(auth.getRefreshToken().map(r -> r.substring(0, 5) + "...").orElse("&lt;none&gt;"))
+                .append("</td>\n");
             b.append("</tr>\n");
             b.append("<tr class=\"even\">\n");
-            b.append("<td>Refresh Token Created</td><td>").append(auth.getRefreshTokenCreatedWhen()
-                .format(DateTimeFormatter.RFC_1123_DATE_TIME)).append("</td>\n");
+            b.append("<td>Refresh Token Created</td><td>").append(auth.getRefreshTokenCreatedWhen()//
+                .map(r -> r.format(DateTimeFormatter.RFC_1123_DATE_TIME))//
+                .orElse("-")).append("</td>\n");
             b.append("</tr>\n");
             b.append("<tr class=\"odd\">\n");
             b.append("<td>Instance URL</td><td>").append(auth.getInstanceURLString()).append("</td>\n");

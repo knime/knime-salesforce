@@ -42,16 +42,53 @@
  *  may freely choose the license terms applicable to such Node, including
  *  when such Node is propagated with or for interoperation with KNIME.
  * ---------------------------------------------------------------------
- * 
+ *
  * History
  *   Dec 30, 2019 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings.query;
+package org.knime.salesforce.rest.gsonbindings.sobjects;
+
+import java.util.Objects;
 
 /**
- * 
+ *
  * @author wiswedel
  */
-public class QueryResult {
+public final class SObject implements Comparable<SObject> {
+
+    private String name;
+    private String label;
+
+    /**
+     * @return the name
+     */
+    public String getName() {
+        return name;
+    }
+    /**
+     * @return the label
+     */
+    public String getLabel() {
+        return label;
+    }
+
+    @Override
+    public int compareTo(final SObject o) {
+        String thisLabel = Objects.toString(label, "ZZZZZ");
+        String otherLabel = Objects.toString(o.label, "ZZZZZ");
+        return thisLabel.compareTo(otherLabel);
+    }
+
+    @Override
+    public String toString() {
+        return label;
+    }
+
+    public static SObject of(final String name, final String label) {
+        SObject result = new SObject();
+        result.name = name;
+        result.label = label;
+        return result;
+    }
 
 }

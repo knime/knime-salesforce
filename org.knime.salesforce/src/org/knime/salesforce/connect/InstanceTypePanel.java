@@ -44,22 +44,60 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Dec 30, 2019 (wiswedel): created
+ *   Jun 28, 2020 (wiswedel): created
  */
-package org.knime.salesforce.rest.bindings.sobjects;
+package org.knime.salesforce.connect;
+
+import java.awt.GridLayout;
+
+import javax.swing.ButtonGroup;
+import javax.swing.JPanel;
+import javax.swing.JRadioButton;
+
+import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
 
 /**
+ * Panel with two radio buttons to select the instance type (production vs. sandbox).
  *
- * @author wiswedel
+ * @author Bernd Wiswedel, KNIME, Konstanz, Germany
  */
-public class SObjects {
+@SuppressWarnings("serial")
+final class InstanceTypePanel extends JPanel {
 
-    private SObject[] sobjects;
+    private final JRadioButton m_productionInstanceChecker;
 
-    /**
-     * @return the sobjects
-     */
-    public SObject[] getSobjects() {
-        return sobjects;
+    private final JRadioButton m_testInstanceChecker;
+
+    InstanceTypePanel() {
+        super(new GridLayout(0, 1));
+        ButtonGroup bg = new ButtonGroup();
+        m_productionInstanceChecker = new JRadioButton("Use Production Instance (login.salesforce.com)");
+        m_testInstanceChecker = new JRadioButton("Use Test Instance (test.salesforce.com)");
+        bg.add(m_productionInstanceChecker);
+        bg.add(m_testInstanceChecker);
+        m_productionInstanceChecker.doClick();
+        add(m_productionInstanceChecker);
+        add(m_testInstanceChecker);
     }
+
+    void saveSettingsTo(final SalesforceConnectorNodeSettings settings) {
+        InstanceType instanceType;
+        if (m_productionInstanceChecker.isSelected()) {
+            instanceType = InstanceType.ProductionInstance;
+        } else {
+            instanceType = InstanceType.TestInstance;
+        }
+        settings.setSalesforceInstanceType(instanceType);
+    }
+
+    void loadSettingsFrom(final SalesforceConnectorNodeSettings settings) {
+        InstanceType salesforceInstanceType = settings.getSalesforceInstanceType();
+        if (salesforceInstanceType == InstanceType.ProductionInstance) {
+            m_productionInstanceChecker.doClick();
+        } else {
+            m_testInstanceChecker.doClick();
+        }
+    }
+
 }
+

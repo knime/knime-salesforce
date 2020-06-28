@@ -64,7 +64,7 @@ import org.knime.salesforce.auth.SalesforceAuthenticationUtils.AuthenticationExc
  * @author David Kolb, KNIME GmbH, Konstanz, Germany
  */
 // TODO: Make abstract version (or default with generic)
-public class SalesforceAuthenticator implements Authenticator<SalesforceAuthentication> {
+public class SalesforceInteractiveAuthenticator implements InteractiveAuthenticator<SalesforceAuthentication> {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceAuthentication.class);
 
@@ -81,7 +81,7 @@ public class SalesforceAuthenticator implements Authenticator<SalesforceAuthenti
     /**
      * Create a new authenticator.
      */
-    public SalesforceAuthenticator() {
+    public SalesforceInteractiveAuthenticator() {
         m_listeners = new HashSet<>();
         m_state = AuthenticatorState.NOT_AUTHENTICATED;
         m_auth = null;

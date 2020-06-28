@@ -48,138 +48,166 @@
  */
 package org.knime.salesforce.rest;
 
-import java.io.IOException;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Optional;
 
+import javax.json.Json;
+import javax.json.JsonPointer;
+import javax.json.JsonReader;
+import javax.json.JsonString;
+import javax.json.JsonStructure;
+import javax.json.JsonValue;
 import javax.ws.rs.ProcessingException;
+import javax.ws.rs.core.Form;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.Response.Status.Family;
 import javax.ws.rs.core.Response.StatusType;
+import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.transport.http.HTTPConduit;
-import org.knime.core.data.DataCell;
-import org.knime.core.data.MissingCell;
-import org.knime.core.data.json.JSONCellFactory;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.SalesforceAuthenticationUtils;
 import org.knime.salesforce.auth.SalesforceAuthenticationUtils.AuthenticationException;
-import org.knime.salesforce.rest.bindings.ErrorResponse;
-import org.knime.salesforce.rest.bindings.fields.Field;
-import org.knime.salesforce.rest.bindings.fields.SObjectDescription;
-import org.knime.salesforce.rest.bindings.sobjects.SObject;
-import org.knime.salesforce.rest.bindings.sobjects.SObjects;
+import org.knime.salesforce.rest.gsonbindings.ErrorResponse;
+import org.knime.salesforce.rest.gsonbindings.fields.Field;
+import org.knime.salesforce.rest.gsonbindings.fields.SObjectDescription;
+import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
+import org.knime.salesforce.rest.gsonbindings.sobjects.SObjects;
 
+import com.github.scribejava.apis.SalesforceApi;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
 /**
+ * Static methods that use the Salesforce
+ * <a href="https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm">REST
+ * API</a>.
  *
- * @author wiswedel
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 public final class SalesforceRESTUtil {
 
-    private static final long CONNECTION_TIMEOUT = 30000;
+    static final long CONNECTION_TIMEOUT = 30000;
 
-    private static final long RECEIVE_TIMEOUT = 60000;
+    static final long RECEIVE_TIMEOUT = 60000;
 
-    private static final String PREFIX_PATH = "/services/data/v47.0/";
+    /**
+     * The base path for all API calls. Version 48 was the latest available on production in July '20.
+     */
+    // get latest version by browsing, e.g. https://knime.my.salesforce.com/services/data/
+    public static final String PREFIX_PATH = "/services/data/v48.0/";
 
-    private static final String QUERY_PATH = PREFIX_PATH + "query/";
+    /** SOQL path. */
+    public static final String QUERY_PATH = PREFIX_PATH + "query/";
 
-    private static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
+    /** SObjects path (object and field description). */
+    public static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
 
-    private static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
+    /** Field description path. */
+    public static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
 
     private SalesforceRESTUtil() {
     }
 
-    public static DataCell get(final String soql, final SalesforceAuthentication auth) throws SalesforceResponseException {
-        CheckUtils.checkArgument(StringUtils.isNotBlank(soql), "SOQL must not be blank");
-        URI uri = auth.uriBuilder().path(QUERY_PATH).queryParam("q", soql).build();
-        NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat("Executing SOQL - %s", uri.toString());
-//        String s;
-//        try {
-//            s = URLEncoder.encode(soql, StandardCharsets.UTF_8.name());
-//        } catch (UnsupportedEncodingException ex1) {
-//            throw new InternalError(ex1.getMessage(), ex1);
-//        }
-        Response response = getInternal(uri, auth, true);
+    /** Performs authentication using username, password and security token (can create a new one in the user's account settings on Salesforce.com).
+     * @param user
+     * @param password
+     * @param securityToken
+     * @param isUseSandbox production or test instance?
+     * @return The authentication object, not null.
+     * @throws SalesforceResponseException If that fails.
+     */
+    public static SalesforceAuthentication authenticateUsingUserAndPassword(final String user, final String password,
+        final String securityToken, final boolean isUseSandbox) throws SalesforceResponseException {
+        CheckUtils.checkArgument(StringUtils.isNotEmpty(user), "User must not be empty (or null)");
+        CheckUtils.checkArgument(StringUtils.isNotEmpty(password), "Password must not be empty");
+        CheckUtils.checkArgumentNotNull(securityToken, "Security token must not be null");
+        SalesforceApi api = isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance();
+        WebClient client = getClient(UriBuilder.fromUri(api.getAccessTokenEndpoint()).build(), null);
+        client.accept(MediaType.APPLICATION_JSON);
+        MultivaluedHashMap<String, String> formData = new MultivaluedHashMap<>();
+        formData.put("grant_type", Collections.singletonList("password"));
+        formData.put("client_id", Collections.singletonList(SalesforceAuthenticationUtils.CLIENT_ID));
+        formData.put("client_secret", Collections.singletonList(SalesforceAuthenticationUtils.CLIENT_SECRET));
+        formData.put("username", Collections.singletonList(user));
+        formData.put("password", Collections.singletonList(password + securityToken));
+        Response response = client.form(new Form(formData));
         if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
-            String error =
-                    String.format("Status: %d -- %s", response.getStatus(), response.getStatusInfo().getReasonPhrase());
-            return new MissingCell(error);
+            String body = response.readEntity(String.class);
+            String errorDescription = null;
+            JsonStructure json = readAsJsonStructure(body);
+            JsonValue errorDescriptionValue = json.getValue("/error_description");
+            errorDescription = errorDescriptionValue != null ? ((JsonString)errorDescriptionValue).getString() : null;
+            throw new SalesforceResponseException(
+                String.format("Authentication failed (status %d): \"%s\"%s", response.getStatus(), //
+                    response.getStatusInfo().getReasonPhrase(), //
+                    errorDescription != null ? (" - error: \"" + errorDescription + "\"") : ""));
         }
         String body = response.readEntity(String.class);
-        try {
-            return JSONCellFactory.create(body, true);
-        } catch (IOException ex) {
-            return new MissingCell("Unable to parse response as JSON:\n" + ex.getMessage());
+        JsonStructure json = readAsJsonStructure(body);
+        JsonValue accessTokenValue = json.getValue("/access_token");
+        JsonValue instanceURLValue = json.getValue("/instance_url");
+        JsonValue issuedAtValue = json.getValue("/issued_at");
+        return new SalesforceAuthentication(//
+            ((JsonString)instanceURLValue).getString(), //
+            ((JsonString)accessTokenValue).getString(), //
+            /*refresh-token*/null, //
+            Instant.ofEpochMilli(Long.parseLong(((JsonString)issuedAtValue).getString()))
+                .atZone(ZoneId.systemDefault()));
+    }
+
+    /** Simple String to JSON conversion.
+     * @param body Input string, not null.
+     * @return Json Object
+     */
+    public static JsonStructure readAsJsonStructure(final String body) {
+        try (StringReader reader = new StringReader(body); JsonReader jsonReader = Json.createReader(reader)) {
+            return jsonReader.read();
         }
     }
 
-    public static Response getInternal(final URI uri, final SalesforceAuthentication auth,
+    /**
+     * Perform a GET request.
+     *
+     * @param uri
+     * @param auth
+     * @param refreshTokenIff if true and the auth object contains refresh token, it will attempt to refresh the access
+     *            token (and also save it in auth).
+     * @return the response
+     * @throws SalesforceResponseException
+     */
+    public static Response doGet(final URI uri, final SalesforceAuthentication auth,
         final boolean refreshTokenIff) throws SalesforceResponseException {
         final WebClient client = getClient(uri, auth);
         client.accept(MediaType.APPLICATION_JSON);
-//        client.acceptEncoding("deflate");
+        client.acceptEncoding("deflate");
         Response response = client.get();
-        if (response.getStatus() == Status.UNAUTHORIZED.getStatusCode() && refreshTokenIff) {
+        boolean refreshEnabled = refreshTokenIff && auth.getRefreshToken().isPresent();
+        if (response.getStatus() == Status.UNAUTHORIZED.getStatusCode() && refreshEnabled) {
             NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat(
                 "Received %s (%d) -- attempting to refresh the access token and retry",
                 Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
             refreshToken(auth);
-            response = getInternal(uri, auth, false);
+            response = doGet(uri, auth, false);
         }
         return response;
     }
 
-    /** Make a GET request */
-    private static <T> T get(final URI uri, final Class<T> responseType, final SalesforceAuthentication auth)
-        throws SalesforceResponseException {
-        final WebClient client = getClient(uri, auth);
-        client.accept(MediaType.APPLICATION_JSON);
-        final Response response = client.get();
-        return checkResponse(response, responseType);
-    }
-
-    /** Make a POST request */
-    private static <T> T post(final URI uri, final Class<T> responseType, final String body,
-        final SalesforceAuthentication auth) throws SalesforceResponseException {
-        final WebClient client = getClient(uri, auth);
-        client.accept(MediaType.APPLICATION_JSON);
-        client.type(MediaType.APPLICATION_JSON);
-        final Response response = client.post(body);
-        return checkResponse(response, responseType);
-    }
-
-    /** Make a DELETE request */
-    private static <T> T delete(final URI uri, final Class<T> responseType, final SalesforceAuthentication auth)
-        throws SalesforceResponseException {
-        final WebClient client = getClient(uri, auth);
-        client.accept(MediaType.APPLICATION_JSON);
-        final Response response = client.delete();
-        return checkResponse(response, responseType);
-    }
-
-    /** Make a PUT request */
-    private static <T> T put(final URI uri, final Class<T> responseType, final String body,
-        final SalesforceAuthentication auth) throws SalesforceResponseException {
-        final WebClient client = getClient(uri, auth);
-        client.accept(MediaType.APPLICATION_JSON);
-        client.type(MediaType.APPLICATION_JSON);
-        final Response response = client.put(body);
-        return checkResponse(response, responseType);
-    }
-
     /**
-     * Check the response of a call to the Power BI REST API. Reads the body if successful or throws an exception if
+     * Check the response of a call to the Salesforce REST API. Reads the body if successful or throws an exception if
      * unsuccessful.
      */
     private static <T> T checkResponse(final Response response, final Class<T> responseType)
@@ -191,7 +219,7 @@ public final class SalesforceRESTUtil {
                 final ErrorResponse error = new Gson().fromJson(response.readEntity(String.class), ErrorResponse.class);
                 message = error.toString();
             } catch (final JsonSyntaxException | ProcessingException e) {
-                message = "Error occured during communicating with Power BI: " + statusInfo.getReasonPhrase()
+                message = "Error occured during communicating with Salesforce: " + statusInfo.getReasonPhrase()
                     + " (Error Code: " + statusInfo.getStatusCode() + ")";
             }
             throw new SalesforceResponseException(message);
@@ -199,7 +227,7 @@ public final class SalesforceRESTUtil {
         try {
             return new Gson().fromJson(response.readEntity(String.class), responseType);
         } catch (final JsonSyntaxException e) {
-            throw new SalesforceResponseException("Invalid response from Power BI.", e);
+            throw new SalesforceResponseException("Invalid response from Salesforce.", e);
         }
     }
 
@@ -213,7 +241,9 @@ public final class SalesforceRESTUtil {
         httpConduit.getClient().setReceiveTimeout(RECEIVE_TIMEOUT);
 
         // Set the auth token
-        client.authorization(getAuthenticationHeader(auth));
+        if (auth != null) {
+            client.authorization(getAuthenticationHeader(auth));
+        }
         return client;
     }
 
@@ -221,24 +251,49 @@ public final class SalesforceRESTUtil {
         return "Bearer " + auth.getAccessToken();
     }
 
+    /** Read objects from Salesforce. Used to populate components in the dialog UI.
+     * @param auth ...
+     * @return ...
+     * @throws SalesforceResponseException
+     */
     public static SObject[] getSObjects(final SalesforceAuthentication auth) throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECTS_PATH).build();
-        Response response = getInternal(uri, auth, true);
+        Response response = doGet(uri, auth, true);
         return checkResponse(response, SObjects.class).getSobjects();
     }
 
-    public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth) throws SalesforceResponseException {
+    /** Read objects from Salesforce. Used to populate components in the dialog UI.
+     * @param object ...
+     * @param auth ...
+     * @return ...
+     * @throws SalesforceResponseException
+     */
+    public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth)
+        throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECT_FIELDS_PATH).build(object.getName().toString());
-        Response response = getInternal(uri, auth, true);
+        Response response = doGet(uri, auth, true);
         return checkResponse(response, SObjectDescription.class).getFields();
     }
 
-    /** Check if the access token is still valid and refresh it if it is not valid anymore */
-    private static void refreshTokenIfNecessary(final SalesforceAuthentication auth) throws SalesforceResponseException {
-        if (false) {
-            // The token needs to be refreshed
-            refreshToken(auth);
+    /** Try to parse exception/errors from Salesforce.
+     * @param response Error response
+     * @return The concrete error messages.
+     */
+    public static Optional<String> readErrorFromResponseBody(final Response response) {
+        String errorBody  = response.readEntity(String.class);
+        JsonStructure jsonError = readAsJsonStructure(errorBody);
+        // the list of pointers will probably grow over time.
+        for (String pointerS : Arrays.asList("/0/message")) {
+            JsonPointer pointer = Json.createPointer(pointerS);
+            if (pointer.containsValue(jsonError)) {
+                JsonValue message = pointer.getValue(jsonError);
+                if (message instanceof JsonString) {
+                    return Optional.ofNullable(((JsonString)message).getString());
+
+                }
+            }
         }
+        return Optional.empty();
     }
 
     /** Refresh the access token (if no other thread refreshed it already) */
@@ -253,22 +308,6 @@ public final class SalesforceRESTUtil {
             throw new SalesforceResponseException(
                 "The access token is not valid anymore and could not be updated. Please update the authentication.",
                 e);
-        }
-    }
-
-    /**
-     * An exception that is thrown if an error occurs during the communication with the Power BI REST API.
-     */
-    public static class SalesforceResponseException extends Exception {
-
-        private static final long serialVersionUID = 1L;
-
-        private SalesforceResponseException(final String message, final Throwable cause) {
-            super(message, cause);
-        }
-
-        private SalesforceResponseException(final String message) {
-            super(message);
         }
     }
 

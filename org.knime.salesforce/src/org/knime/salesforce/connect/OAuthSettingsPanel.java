@@ -55,6 +55,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
+import java.util.Arrays;
 import java.util.Enumeration;
 
 import javax.swing.AbstractButton;
@@ -70,8 +71,8 @@ import javax.swing.JRadioButton;
 
 import org.knime.core.node.defaultnodesettings.DialogComponentFileChooser;
 import org.knime.core.node.defaultnodesettings.SettingsModelString;
-import org.knime.salesforce.auth.Authenticator;
-import org.knime.salesforce.auth.Authenticator.AuthenticatorState;
+import org.knime.salesforce.auth.InteractiveAuthenticator;
+import org.knime.salesforce.auth.InteractiveAuthenticator.AuthenticatorState;
 
 /**
  * A default settings panel for OAuth based authentication with a service.
@@ -104,7 +105,7 @@ final class OAuthSettingsPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private final Authenticator<?> m_auth;
+    private final InteractiveAuthenticator<?> m_auth;
 
     private JLabel m_authStateLabel;
 
@@ -141,7 +142,7 @@ final class OAuthSettingsPanel extends JPanel {
      *
      * @param auth the authenticator which handles the authentication
      */
-    OAuthSettingsPanel(final Authenticator<?> auth) {
+    OAuthSettingsPanel(final InteractiveAuthenticator<?> auth) {
         super(new GridBagLayout());
 
         m_auth = auth;
@@ -507,6 +508,9 @@ enum CredentialsLocationType {
     }
 
     public static CredentialsLocationType fromActionCommand(final String actionCommand) {
-        return valueOf(actionCommand);
+        return Arrays.stream(CredentialsLocationType.values())//
+            .filter(c -> c.name().equals(actionCommand))//
+            .findFirst()//
+            .orElse(MEMORY);
     }
 }

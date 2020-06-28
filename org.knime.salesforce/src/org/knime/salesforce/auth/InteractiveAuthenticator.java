@@ -59,7 +59,7 @@ import java.util.EventListener;
  * @author David Kolb, KNIME GmbH, Konstanz, Germany
  * @param <T> The type of the authentication object managed by this Authenticator.
  */
-public interface Authenticator<T> {
+public interface InteractiveAuthenticator<T> {
 
     /**
      * Start the authentication flow.
@@ -115,7 +115,7 @@ public interface Authenticator<T> {
     T getAuthentication();
 
     /**
-     * A state of an {@link Authenticator}. Use {@link #toString()} to get a user-friendly description of the state.
+     * A state of an {@link InteractiveAuthenticator}. Use {@link #toString()} to get a user-friendly description of the state.
      */
     public enum AuthenticatorState {
             /** User is not authenticated */

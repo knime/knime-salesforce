@@ -48,9 +48,14 @@
  */
 package org.knime.salesforce.soql;
 
+import static org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation.RAW;
+import static org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation.RECORDS;
+
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -60,12 +65,17 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
+import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListModel;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.border.Border;
@@ -79,6 +89,7 @@ import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.ConvenientComboBoxRenderer;
 import org.knime.core.node.util.FlowVariableListCellRenderer;
+import org.knime.core.node.util.ViewUtils;
 import org.knime.core.node.workflow.FlowVariable;
 import org.knime.core.node.workflow.VariableType.BooleanType;
 import org.knime.core.node.workflow.VariableType.DoubleType;
@@ -89,12 +100,13 @@ import org.knime.core.util.SwingWorkerWithContext;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
-import org.knime.salesforce.rest.bindings.fields.Field;
-import org.knime.salesforce.rest.bindings.sobjects.SObject;
+import org.knime.salesforce.rest.gsonbindings.fields.Field;
+import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
+import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation;
 
 /**
- *
- * @author wiswedel
+ * Dialog to 'Salesforce SOQL' node.
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
@@ -123,6 +135,11 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     private final JList<FlowVariable> m_flowVarsList;
     private final RSyntaxTextArea m_soqlTextArea;
 
+    private final JRadioButton m_rawOutputRadio;
+    private final JRadioButton m_recordOutputRadio;
+
+    private final JCheckBox m_outputAsCount;
+
     SalesforceSOQLNodeDialogPane() {
         m_fieldList = new JList<>(new DefaultListModel<>());
         m_flowVarsList = new JList<>(new DefaultListModel<>());
@@ -137,9 +154,24 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_sObjectFieldCache.put(FAILED_CONTENT, new Field[] {FAILED_FIELD});
         m_sObjectFieldCache.put(FETCHING_CONTENT, new Field[] {});
         m_sObjectFieldCache.put(NO_AUTH_CONTENT, new Field[] {});
+
+        m_outputAsCount = new JCheckBox("Only output size (for `count()` queries)");
+
+        m_rawOutputRadio = new JRadioButton(RAW.getLabel());
+        m_rawOutputRadio.setActionCommand(RAW.name());
+        m_recordOutputRadio = new JRadioButton(RECORDS.getLabel());
+        m_recordOutputRadio.setActionCommand(RECORDS.name());
+        m_recordOutputRadio.addItemListener(e -> m_outputAsCount.setEnabled(m_recordOutputRadio.isSelected()));
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(m_rawOutputRadio);
+        bg.add(m_recordOutputRadio);
+        m_recordOutputRadio.doClick();
+
+
         addTab("SOQL Editor", createPanel());
     }
 
+    @SuppressWarnings("unchecked")
     private JPanel createPanel() {
         GridBagConstraints gbc = new GridBagConstraints();
         JPanel leftPanel = new JPanel(new GridBagLayout());
@@ -164,9 +196,10 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
             @Override
             public void mouseClicked(final MouseEvent e) {
                 if (e.getClickCount() == 2) {
+                    SObject selectedObject = (SObject)m_sObjectsCombo.getSelectedItem();
                     Field selectedValue = m_fieldList.getSelectedValue();
                     if (selectedValue != null) {
-                        onFieldSelected(selectedValue);
+                        onFieldSelected(selectedObject, selectedValue);
                     }
                 }
             }
@@ -191,22 +224,36 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         });
         leftPanel.add(fieldAndFlowVarLeftPanel, gbc);
 
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        RTextScrollPane soqlEditorScroller = new RTextScrollPane(m_soqlTextArea);
+        soqlEditorScroller.setLineNumbersEnabled(true);
+        soqlEditorScroller.setBorder(createEmptyTitledBorder("SOQL"));
+        rightPanel.add(soqlEditorScroller, BorderLayout.CENTER);
+
+        rightPanel.add(createControlPanelBelowMainSOQLEditorArea(), BorderLayout.SOUTH);
+
         JSplitPane mainSplitPanel = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         mainSplitPanel.setOneTouchExpandable(true);
         mainSplitPanel.setDividerLocation(0.3);
         mainSplitPanel.setResizeWeight(0.3);
         mainSplitPanel.setLeftComponent(leftPanel);
-        RTextScrollPane soqlEditorScroller = new RTextScrollPane(m_soqlTextArea);
-        soqlEditorScroller.setLineNumbersEnabled(true);
-        soqlEditorScroller.setBorder(createEmptyTitledBorder("SOQL"));
-        mainSplitPanel.setRightComponent(soqlEditorScroller);
+        mainSplitPanel.setRightComponent(rightPanel);
 
         JPanel result = new JPanel(new BorderLayout());
         result.add(mainSplitPanel, BorderLayout.CENTER);
         return result;
     }
 
-    private Border createEmptyTitledBorder(final String title) {
+    private JPanel createControlPanelBelowMainSOQLEditorArea() {
+        JPanel panel = new JPanel(new GridLayout(0, 1));
+        panel.add(new JLabel("Output Representation:"));
+        panel.add(ViewUtils.getInFlowLayout(FlowLayout.LEADING, 5, 2, new JLabel("  "), m_rawOutputRadio));
+        panel.add(ViewUtils.getInFlowLayout(FlowLayout.LEADING, 5, 2, new JLabel("  "), m_recordOutputRadio,
+            new JLabel(" "), m_outputAsCount));
+        return panel;
+    }
+
+    private static Border createEmptyTitledBorder(final String title) {
         return BorderFactory.createTitledBorder(BorderFactory.createEmptyBorder(), title);
     }
 
@@ -217,8 +264,8 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_soqlTextArea.requestFocus();
     }
 
-    private void onFieldSelected(final Field field) {
-        m_soqlTextArea.replaceSelection(field.getName());
+    private void onFieldSelected(final SObject object, final Field field) {
+        m_soqlTextArea.replaceSelection(object.getName() + "." + field.getName());
         m_flowVarsList.clearSelection();
         m_soqlTextArea.requestFocus();
     }
@@ -227,6 +274,17 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     protected void saveSettingsTo(final NodeSettingsWO settings) throws InvalidSettingsException {
         SalesforceSOQLNodeSettings soqlSettings = new SalesforceSOQLNodeSettings();
         soqlSettings.setSOQL(m_soqlTextArea.getText());
+        String outputRepresentationName =
+                Arrays.asList(m_rawOutputRadio, m_recordOutputRadio).stream()//
+                .filter(AbstractButton::isSelected)//
+                .map(JRadioButton::getActionCommand)//
+                .findFirst()//
+                .orElseThrow(() -> new InvalidSettingsException("No output type selected"));
+        SOQLOutputRepresentation outputRepresentation =
+            SalesforceSOQLNodeSettings.SOQLOutputRepresentation.from(outputRepresentationName)
+                .orElseThrow(() -> new InvalidSettingsException("Invalid output representation"));
+        soqlSettings.setOutputRepresentation(outputRepresentation);
+        soqlSettings.setOutputAsCount(m_outputAsCount.isSelected());
         soqlSettings.saveSettingsTo(settings);
     }
 
@@ -256,6 +314,10 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_sObjectsCombo.setEnabled(false);
         m_sObjectsCombo.setEnabled(false);
         m_soqlTextArea.setText(soqlSettings.getSOQL());
+        Arrays.asList(m_rawOutputRadio, m_recordOutputRadio).stream()//
+            .filter(b -> b.getActionCommand().equals(soqlSettings.getOutputRepresentation().name()))//
+            .findFirst().ifPresent(AbstractButton::doClick);
+        m_outputAsCount.setSelected(soqlSettings.isOutputAsCount());
         m_soqlTextArea.requestFocus();
     }
 
@@ -346,6 +408,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
             SObject selectedObject = FAILED_CONTENT;
             try {
                 fields = get();
+                Arrays.sort(fields, (a, b) -> a.getLabel().compareTo(b.getLabel()));
                 m_sObjectFieldCache.put(m_sObject, fields);
                 selectedObject = m_sObject;
             } catch (InterruptedException | CancellationException ex) {

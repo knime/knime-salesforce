@@ -50,14 +50,9 @@ package org.knime.salesforce.soql;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Optional;
 
-import org.knime.core.data.DataCell;
-import org.knime.core.data.DataColumnSpecCreator;
 import org.knime.core.data.DataTableSpec;
-import org.knime.core.data.RowKey;
-import org.knime.core.data.def.DefaultRow;
-import org.knime.core.data.json.JSONCellFactory;
-import org.knime.core.node.BufferedDataContainer;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
@@ -71,54 +66,58 @@ import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
-import org.knime.salesforce.rest.SalesforceRESTUtil;
+import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
+import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
+import org.knime.salesforce.rest.soql.RawOutputSOQLExecutor;
+import org.knime.salesforce.rest.soql.RecordsOutputSOQLExecutor;
 
 /**
- *
- * @author wiswedel
+ * Model of 'Salesforce SOQL' node.
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceSOQLNodeModel extends NodeModel {
 
     private SalesforceSOQLNodeSettings m_settings = new SalesforceSOQLNodeSettings();
 
-    /**
-     */
     SalesforceSOQLNodeModel() {
         super(new PortType[] {SalesforceConnectionPortObject.TYPE}, new PortType[] {BufferedDataTable.TYPE});
     }
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
-        return new PortObjectSpec[] {createOutputSpec()};
+        SalesforceAuthentication auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
+        Optional<DataTableSpec> outSpec = createSoqlExecutor(auth, m_settings).createOutputSpec();
+        return outSpec.map(s -> new PortObjectSpec[] {s}).orElse(null);
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inObjects, final ExecutionContext exec) throws Exception {
         SalesforceAuthentication auth =
             ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
-        DataTableSpec outputSpec = createOutputSpec();
-        BufferedDataContainer output = exec.createDataContainer(outputSpec);
-        DataCell jsonResult = SalesforceRESTUtil.get(m_settings.getSOQL(), auth);
-        output.addRowToTable(new DefaultRow(RowKey.createRowKey(0L), jsonResult));
-        output.close();
-        return new PortObject[] {output.getTable()};
+        AbstractSOQLExecutor executor = createSoqlExecutor(auth, m_settings);
+        return new PortObject[] {executor.execute(exec)};
     }
 
-    private DataTableSpec createOutputSpec() {
-        return new DataTableSpec(
-            new DataColumnSpecCreator(m_settings.getOutputColumnName(), JSONCellFactory.TYPE).createSpec());
+    private AbstractSOQLExecutor createSoqlExecutor(final SalesforceAuthentication auth,
+        final SalesforceSOQLNodeSettings settings) {
+        switch (m_settings.getOutputRepresentation()) {
+            case RAW:
+                return new RawOutputSOQLExecutor(auth, settings);
+            case RECORDS:
+                return new RecordsOutputSOQLExecutor(auth, settings);
+            default:
+                throw new IllegalStateException("Type not implementation: " + m_settings.getOutputRepresentation());
+        }
     }
 
     @Override
     protected void reset() {
-
+        // no internals
     }
 
     @Override
     protected void saveSettingsTo(final NodeSettingsWO settings) {
-        if (m_settings != null) {
-            m_settings.saveSettingsTo(settings);
-        }
+        m_settings.saveSettingsTo(settings);
     }
 
     @Override
@@ -134,11 +133,13 @@ final class SalesforceSOQLNodeModel extends NodeModel {
     @Override
     protected void loadInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
+        // no internals
     }
 
     @Override
     protected void saveInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
+        // no internals
     }
 
 

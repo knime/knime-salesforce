@@ -44,44 +44,22 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Oct 4, 2019 (benjamin): created
+ *   Dec 30, 2019 (wiswedel): created
  */
-package org.knime.salesforce.connect;
-
-import org.knime.core.node.NodeDialogPane;
-import org.knime.core.node.NodeFactory;
-import org.knime.core.node.NodeView;
+package org.knime.salesforce.rest.gsonbindings.sobjects;
 
 /**
- * Salesforce connector node.
  *
- * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
+ * @author wiswedel
  */
-public final class SalesforceConnectorNodeFactory extends NodeFactory<SalesforceConnectorNodeModel> {
+public class SObjects {
 
-    @Override
-    public SalesforceConnectorNodeModel createNodeModel() {
-        return new SalesforceConnectorNodeModel();
-    }
+    private SObject[] sobjects;
 
-    @Override
-    protected NodeDialogPane createNodeDialogPane() {
-        return new SalesforceConnectorNodeDialog();
-    }
-
-    @Override
-    protected int getNrNodeViews() {
-        return 0;
-    }
-
-    @Override
-    public NodeView<SalesforceConnectorNodeModel> createNodeView(final int viewIndex,
-        final SalesforceConnectorNodeModel nodeModel) {
-        return null;
-    }
-
-    @Override
-    protected boolean hasDialog() {
-        return true;
+    /**
+     * @return the sobjects
+     */
+    public SObject[] getSobjects() {
+        return sobjects;
     }
 }
