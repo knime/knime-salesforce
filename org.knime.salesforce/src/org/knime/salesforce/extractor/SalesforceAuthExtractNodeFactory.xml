@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<knimeNode
+	icon="/icons/salesforce_connect.png"
+	type="Manipulator" xmlns="http://knime.org/node/v4.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
+	<name>Salesforce Connection Extractor</name>
+	<shortDescription>Extracts Access Token and Instance URL from a Salesforce Connection</shortDescription>
+	<fullDescription>
+		<intro>
+			<p>
+				Extracts Access Token and Instance URL from a Salesforce Connection. Optionally, the access token can be
+				refreshed on execution so that downstream nodes will find a valid token upon execution. This node is 
+				usually upstream of a REST node (e.g. <i>GET Request</i>), whereby these nodes will use the instance url
+				and the access token in their configuration.
+			</p>
+		</intro>
+		<option name="Refresh token on execute">
+			If selected, a request is made to Salesforce to refresh the access token. In case the input connection object
+			carries a username + password authentication (as opposed to OAuth web authentication) this option is ignored
+			and the access token is return as-is. (Username + Password authentication does not bear a refresh token).
+		</option>
+	</fullDescription>
+	<ports>
+		<inPort index="0" name="Authentication">
+			Salesforce Authentication Object
+		</inPort>
+		<outPort index="0" name="Variables with URL and token information">
+			The variables denote the Salesforce connection instance to be used and the access token as stored 
+			in the input object. 
+		</outPort>
+	</ports>
+</knimeNode>

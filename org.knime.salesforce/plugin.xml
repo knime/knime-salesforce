@@ -18,6 +18,13 @@
             factory-class="org.knime.salesforce.connect.SalesforceConnectorNodeFactory">
       </node>
       <node
+            after="org.knime.salesforce.connect.SalesforceConnectorNodeFactory"
+            category-path="/labs/salesforce"
+            deprecated="false"
+            factory-class="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory">
+      </node>
+      <node
+            after="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory"
             category-path="/labs/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.soql.SalesforceSOQLNodeFactory">
