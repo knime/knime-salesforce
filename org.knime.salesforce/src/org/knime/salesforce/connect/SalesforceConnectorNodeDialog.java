@@ -74,7 +74,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
     @SuppressWarnings("serial")
     public SalesforceConnectorNodeDialog() {
         m_instanceTypePanel = new InstanceTypePanel();
-        m_authControllerPanel = new AuthControllerPanel() {
+        m_authControllerPanel = new AuthControllerPanel(m_instanceTypePanel) {
             @Override
             void onClearedAllAuthentication() {
                 for (CredentialsLocationType clt : CredentialsLocationType.values()) {

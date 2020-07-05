@@ -166,7 +166,8 @@ public final class SalesforceRESTUtil {
             ((JsonString)accessTokenValue).getString(), //
             /*refresh-token*/null, //
             Instant.ofEpochMilli(Long.parseLong(((JsonString)issuedAtValue).getString()))
-                .atZone(ZoneId.systemDefault()));
+                .atZone(ZoneId.systemDefault()), //
+            isUseSandbox);
     }
 
     /** Simple String to JSON conversion.
@@ -200,8 +201,8 @@ public final class SalesforceRESTUtil {
             NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat(
                 "Received %s (%d) -- attempting to refresh the access token and retry",
                 Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
-            refreshToken(auth);
-            response = doGet(uri, auth, false);
+            SalesforceAuthentication newAuth = refreshToken(auth);
+            response = doGet(uri, newAuth, false);
         }
         return response;
     }
@@ -296,10 +297,11 @@ public final class SalesforceRESTUtil {
         return Optional.empty();
     }
 
-    /** Refresh the access token (if no other thread refreshed it already) */
-    private static synchronized void refreshToken(final SalesforceAuthentication auth) throws SalesforceResponseException {
+    /** Refresh the access token (if no other thread refreshed it already)
+     * @return new auth */
+    private static synchronized SalesforceAuthentication refreshToken(final SalesforceAuthentication auth) throws SalesforceResponseException {
         try {
-            SalesforceAuthenticationUtils.refreshToken(auth);
+            return SalesforceAuthenticationUtils.refreshToken(auth);
         } catch (final AuthenticationException | InterruptedException e) {
             if (e.getCause() instanceof UnknownHostException) {
                 throw new SalesforceResponseException(

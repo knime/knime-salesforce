@@ -99,5 +99,9 @@ final class InstanceTypePanel extends JPanel {
         }
     }
 
+    boolean isUseSandbox() {
+        return m_testInstanceChecker.isSelected();
+    }
+
 }
 

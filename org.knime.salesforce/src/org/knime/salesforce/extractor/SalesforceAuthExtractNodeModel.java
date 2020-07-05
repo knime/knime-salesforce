@@ -103,9 +103,9 @@ final class SalesforceAuthExtractNodeModel extends NodeModel {
 
         if (m_refreshTokenOnExecuteModel.getBooleanValue()) {
             if (refreshToken.isPresent()) {
-                SalesforceAuthenticationUtils.refreshToken(auth);
+                auth = SalesforceAuthenticationUtils.refreshToken(auth);
                 ZonedDateTime accessTokenCreateWhenNew = auth.getAccessTokenCreatedWhen();
-                getLogger().debugWithFormat("Renewed access token; old created at %s); new one created at %s",
+                getLogger().debugWithFormat("Renewed access token; old token created at %s); new one created at %s",
                     accessTokenCreatedWhen, accessTokenCreateWhenNew);
             } else {
                 getLogger().debugWithFormat("No refresh token in connection port object -- will return existing "
@@ -117,7 +117,7 @@ final class SalesforceAuthExtractNodeModel extends NodeModel {
     }
 
     private void extractInfo(final SalesforceAuthentication salesforceAuthentication) {
-        pushFlowVariable("access-token", StringType.INSTANCE, salesforceAuthentication.getAccessToken());
+        pushFlowVariable("access-token", StringType.INSTANCE, "Bearer " + salesforceAuthentication.getAccessToken());
         pushFlowVariable("salesforce-instance-url", StringType.INSTANCE, salesforceAuthentication.getInstanceURLString());
     }
 

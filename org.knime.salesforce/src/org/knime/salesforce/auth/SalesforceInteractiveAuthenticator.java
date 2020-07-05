@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.SwingWorkerWithContext;
@@ -70,6 +71,8 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
 
     private final Set<AuthenticatorListener> m_listeners;
 
+    private final Supplier<Boolean> m_useSandboxFlagSupplier;
+
     private SwingWorkerWithContext<SalesforceAuthentication, Void> m_swingWorker;
 
     private SalesforceAuthentication m_auth;
@@ -78,10 +81,13 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
 
     private String m_error;
 
+
     /**
      * Create a new authenticator.
+     * @param useSandboxFlagSupplier
      */
-    public SalesforceInteractiveAuthenticator() {
+    public SalesforceInteractiveAuthenticator(final Supplier<Boolean> useSandboxFlagSupplier) {
+        m_useSandboxFlagSupplier = useSandboxFlagSupplier;
         m_listeners = new HashSet<>();
         m_state = AuthenticatorState.NOT_AUTHENTICATED;
         m_auth = null;
@@ -95,7 +101,7 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
 
             @Override
             protected SalesforceAuthentication doInBackgroundWithContext() throws Exception {
-                m_futureAuth = SalesforceAuthenticationUtils.authenticate();
+                m_futureAuth = SalesforceAuthenticationUtils.authenticate(m_useSandboxFlagSupplier.get());
                 return m_futureAuth.get();
             }
 

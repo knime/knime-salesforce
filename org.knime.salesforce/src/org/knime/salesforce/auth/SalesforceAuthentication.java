@@ -62,6 +62,7 @@ import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.util.CheckUtils;
 
+import com.github.scribejava.apis.SalesforceApi;
 import com.github.scribejava.apis.salesforce.SalesforceToken;
 
 /**
@@ -88,6 +89,8 @@ public final class SalesforceAuthentication {
 
     private final String m_instanceURLString;
 
+    private final boolean m_isSandboxInstance;
+
 
     /**
      * Create a new default {@link SalesforceAuthentication} with the given tokens.
@@ -96,20 +99,22 @@ public final class SalesforceAuthentication {
      * @param accessToken the access token
      * @param refreshToken the refresh token. Can be <code>null</code>.
      * @param tokensCreatedWhen Timestamp when tokens were fetched
+     * @param isUseSandboxInstance Whether to use a sandbox instance (as per {@link SalesforceApi#sandbox()}.
      */
     public SalesforceAuthentication(final String instanceURLString, final String accessToken,
-        final String refreshToken, final ZonedDateTime tokensCreatedWhen) {
-        this(instanceURLString, accessToken, tokensCreatedWhen, refreshToken, tokensCreatedWhen);
+        final String refreshToken, final ZonedDateTime tokensCreatedWhen, final boolean isUseSandboxInstance) {
+        this(instanceURLString, accessToken, tokensCreatedWhen, refreshToken, tokensCreatedWhen, isUseSandboxInstance);
     }
 
     private SalesforceAuthentication(final String instanceURLString, final String accessToken,
         final ZonedDateTime accessTokenCreatedWhen, final String refreshToken,
-        final ZonedDateTime refreshTokenCreatedWhen) {
+        final ZonedDateTime refreshTokenCreatedWhen, final boolean isUseSandboxInstance) {
         m_instanceURLString = CheckUtils.checkArgumentNotNull(instanceURLString);
         m_accessToken = CheckUtils.checkArgumentNotNull(accessToken);
         m_accessTokenCreatedWhen = CheckUtils.checkArgumentNotNull(accessTokenCreatedWhen);
         m_refreshToken = refreshToken;
         m_refreshTokenCreatedWhen = refreshToken != null ? refreshTokenCreatedWhen : null;
+        m_isSandboxInstance = isUseSandboxInstance;
     }
 
     /**
@@ -147,6 +152,13 @@ public final class SalesforceAuthentication {
     }
 
     /**
+     * @return the isSandboxInstance
+     */
+    public boolean isSandboxInstance() {
+        return m_isSandboxInstance;
+    }
+
+    /**
      * Creates a clone with an updated access token.
      *
      * @param accessToken the new access token
@@ -155,7 +167,7 @@ public final class SalesforceAuthentication {
      */
     public SalesforceAuthentication refreshAccessToken(final String accessToken, final ZonedDateTime tokenCreatedWhen) {
         return new SalesforceAuthentication(m_instanceURLString, accessToken, tokenCreatedWhen, m_refreshToken,
-            m_refreshTokenCreatedWhen);
+            m_refreshTokenCreatedWhen, m_isSandboxInstance);
     }
 
     /**
@@ -174,6 +186,7 @@ public final class SalesforceAuthentication {
         settings.addString("accessTokenCreatedWhen", toString(m_accessTokenCreatedWhen));
         settings.addPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY, m_refreshToken);
         settings.addString("refreshTokenCreatedWhen", toString(m_refreshTokenCreatedWhen));
+        settings.addBoolean("isSandboxInstance", m_isSandboxInstance);
     }
 
     /**
@@ -189,8 +202,9 @@ public final class SalesforceAuthentication {
         String refreshToken = settings.getPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY);
         String rtWhen = settings.getString("refreshTokenCreatedWhen");
         ZonedDateTime refreshTokenCreatedWhen = rtWhen != null ? fromString(rtWhen) : null;
+        boolean isSandbox = settings.getBoolean("isSandboxInstance");
         return new SalesforceAuthentication(instanceURLString, accessToken, accessTokenCreatedWhen, refreshToken,
-            refreshTokenCreatedWhen);
+            refreshTokenCreatedWhen, isSandbox);
     }
 
     private static String toString(final ZonedDateTime zdt) {

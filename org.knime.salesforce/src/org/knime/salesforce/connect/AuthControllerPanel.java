@@ -79,7 +79,7 @@ abstract class AuthControllerPanel extends JPanel {
     private final OAuthSettingsPanel m_oauthPanel;
     private final UsernamePasswordSettingsPanel m_usernamePasswordPanel;
 
-    AuthControllerPanel() {
+    AuthControllerPanel(final InstanceTypePanel instanceTypePanel) {
         super(new BorderLayout());
         ButtonGroup bg = new ButtonGroup();
         m_oauthSelectionButton = new JRadioButton("OAuth2 Interactive Authentication (via browser)");
@@ -96,7 +96,7 @@ abstract class AuthControllerPanel extends JPanel {
         add(m_centerPanel, BorderLayout.CENTER);
         add(ViewUtils.getInFlowLayout(new JLabel(" ")), BorderLayout.WEST);
 
-        m_authenticator = new SalesforceInteractiveAuthenticator();
+        m_authenticator = new SalesforceInteractiveAuthenticator(() -> instanceTypePanel.isUseSandbox());
         m_oauthPanel = new OAuthSettingsPanel(m_authenticator);
 
         // Listeners to clear stored credentials
@@ -108,6 +108,7 @@ abstract class AuthControllerPanel extends JPanel {
 
         m_oauthSelectionButton.doClick();
         m_centerPanel.add(m_oauthPanel);
+
     }
 
     void onTypeChange() {

@@ -313,11 +313,11 @@ final class SalesforceConnectorNodeSettings {
         r.m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
         r.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY);
 
-        // Load the authentication last (in case it fails)
-        SalesforceAuthentication auth =
-            r.loadAuthentication(settings, getDialogToNodeExchangeInstance());
-        if (!validateOnly) {
-            getGlobalInstance().put(nodeInstanceID, auth);
+        if (r.m_authType == AuthType.Interactive) {
+            SalesforceAuthentication auth = r.loadAuthentication(settings, getDialogToNodeExchangeInstance());
+            if (!validateOnly) {
+                getGlobalInstance().put(nodeInstanceID, auth);
+            }
         }
         return r;
     }

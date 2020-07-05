@@ -110,12 +110,13 @@ public class SalesforceAuthenticationUtils {
      * call does not block until the user has authenticated. Wait until the future is done.
      *
      * Cancel the future to cancel the authentication process.
+     * @param isUseSandbox where to connect to (as per {@link SalesforceApi}.
      *
      * @return A future holding the authentication
      * @throws AuthenticationException if the authentication fails because of any reason
      */
     @SuppressWarnings("resource") // The service and server are closed by a waiting thread
-    static Future<SalesforceAuthentication> authenticate() throws AuthenticationException {
+    static Future<SalesforceAuthentication> authenticate(final boolean isUseSandbox) throws AuthenticationException {
         if (!OAUTH_IN_PROGRESS.getAndSet(true)) {
 
             // The future authentication object
@@ -126,7 +127,7 @@ public class SalesforceAuthenticationUtils {
                     .apiSecret(CLIENT_SECRET) //
 //                    .defaultScope(scope.getScope()) //
                     .callback(OAUTH_CALLBACK_URL) //
-                    .build(SalesforceApi.instance());
+                    .build(isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance());
 
             // Open the callback webserver
             final Service callbackServer = Service.ignite().port(OAUTH_CALLBACK_PORT);
@@ -141,8 +142,9 @@ public class SalesforceAuthenticationUtils {
                         final SalesforceToken accessToken = (SalesforceToken)service.getAccessToken(authCode.get());
 
                         // Set the future result
-                        authFuture.setResult(new SalesforceAuthentication(accessToken.getInstanceUrl(),
-                            accessToken.getAccessToken(), accessToken.getRefreshToken(), tokensCreatedWhen));
+                        authFuture.setResult(
+                            new SalesforceAuthentication(accessToken.getInstanceUrl(), accessToken.getAccessToken(),
+                                accessToken.getRefreshToken(), tokensCreatedWhen, isUseSandbox));
 
                         return OAUTH_SUCCESS_PAGE;
                     } else {
@@ -258,13 +260,12 @@ public class SalesforceAuthenticationUtils {
         String refreshToken = auth.getRefreshToken()
             .orElseThrow(() -> new IllegalStateException("Refresh not to be called, no refresh token"));
 
-        try (final OAuth20Service service =
-            new ServiceBuilder(CLIENT_ID).build(SalesforceApi.sandbox())) {
+        try (final OAuth20Service service = new ServiceBuilder(CLIENT_ID)
+            .build(auth.isSandboxInstance() ? SalesforceApi.sandbox() : SalesforceApi.instance())) {
             // Request the new access token
             ZonedDateTime tokenCreatedWhen = ZonedDateTime.now();
             final OAuth2AccessToken updatedAuth = service.refreshAccessToken(refreshToken);
-            auth.refreshAccessToken(updatedAuth.getAccessToken(), tokenCreatedWhen);
-            return auth;
+            return auth.refreshAccessToken(updatedAuth.getAccessToken(), tokenCreatedWhen);
         } catch (final IOException | ExecutionException e) {
             // Re-throw the exception
             throw new AuthenticationException(e.getMessage(), e);
