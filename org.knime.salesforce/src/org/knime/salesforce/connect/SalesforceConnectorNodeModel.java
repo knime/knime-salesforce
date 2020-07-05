@@ -141,10 +141,8 @@ final class SalesforceConnectorNodeModel extends NodeModel {
 
     @Override
     protected void saveSettingsTo(final NodeSettingsWO settings) {
-        try {
+        if (m_settings != null) {
             m_settings.saveSettingsInModel(settings);
-        } catch (IOException | InvalidSettingsException ex) {
-            throw new IllegalStateException(ex);
         }
     }
 

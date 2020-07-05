@@ -260,24 +260,40 @@ final class SalesforceConnectorNodeSettings {
         return m_usernamePasswortAuthenticationModel;
     }
 
+    /**
+     * Called when dialog is about to close. This also saves the authentication information to the
+     * file system (if configured to do so).
+     * @param settings to save to
+     * @throws IOException If {@link CredentialsLocationType#FILESYSTEM} and the credentials can't be saved to file.
+     * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
+     *             be resolved.
+     */
     void saveSettingsInDialog(final NodeSettingsWO settings) throws IOException, InvalidSettingsException {
-        saveSettingsTo(settings, getDialogToNodeExchangeInstance());
+        Optional<SalesforceAuthentication> auth = saveSettingsTo(settings, getDialogToNodeExchangeInstance());
+        if (auth.isPresent()) {
+            String fsLocation = getFilesystemLocation();
+            CheckUtils.checkSettingNotNull(StringUtils.isNotEmpty(fsLocation), "File system location must not be empty");
+            File credentialsFile = resolveFilesystemLocation(fsLocation).orElseThrow(IllegalStateException::new);
+            saveCredentialsToFile(credentialsFile, auth.get());
+        }
+
     }
 
-    void saveSettingsInModel(final NodeSettingsWO settings) throws IOException, InvalidSettingsException {
+    void saveSettingsInModel(final NodeSettingsWO settings) {
         saveSettingsTo(settings, getGlobalInstance());
     }
 
-    private void saveSettingsTo(final NodeSettingsWO settings, final InMemoryAuthenticationStore authStore)
-        throws IOException, InvalidSettingsException {
+    private Optional<SalesforceAuthentication> saveSettingsTo(
+        final NodeSettingsWO settings, final InMemoryAuthenticationStore authStore) {
         settings.addString(CFG_KEY_NODE_INSTANCE_ID, m_nodeInstanceID.toString());
         settings.addString(CFG_SALESFORCE_INSTANCE, getSalesforceInstanceType().getLocation());
         settings.addString(CFG_AUTH_TYPE, getAuthType().name());
         settings.addString(CFG_KEY_CREDENTIALS_SAVE_LOCATION, getCredentialsSaveLocation().getActionCommand());
         Optional<SalesforceAuthentication> auth = authStore.get(m_nodeInstanceID);
-        saveAuthentication(settings, auth.orElse(null));
         m_usernamePasswortAuthenticationModel.saveSettingsTo(settings);
         settings.addPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, m_passwordSecurityToken);
+        saveAuthentication(settings, auth.orElse(null));
+        return auth;
     }
 
     static SalesforceConnectorNodeSettings loadInModel(final NodeSettingsRO settings, final boolean validateOnly)
@@ -387,25 +403,13 @@ final class SalesforceConnectorNodeSettings {
      *
      * @param settings Setting to save authentication to if {@link CredentialsLocationType#FILESYSTEM}.
      * @param auth Authenticaton object
-     * @throws IOException If {@link CredentialsLocationType#FILESYSTEM} and the credentials can't be saved to file.
-     * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
-     *             be resolved.
      */
-    private void saveAuthentication(final NodeSettingsWO settings, final SalesforceAuthentication auth)
-        throws IOException, InvalidSettingsException {
+    private void saveAuthentication(final NodeSettingsWO settings, final SalesforceAuthentication auth) {
         switch (m_credentialsSaveLocation) {
             case MEMORY:
                 break;
             case FILESYSTEM:
-                String fsLocation = auth == null ? null : getFilesystemLocation();
-                settings.addString(CFG_KEY_FILESYSTEM_LOCATION, fsLocation);
-                if (auth != null) {
-                    CheckUtils.checkSettingNotNull(StringUtils.isNotEmpty(fsLocation),
-                        "File system location must not be empty");
-                    File credentialsFile =
-                        resolveFilesystemLocation(fsLocation).orElseThrow(IllegalStateException::new);
-                    saveCredentialsToFile(credentialsFile, auth);
-                }
+                settings.addString(CFG_KEY_FILESYSTEM_LOCATION, getFilesystemLocation());
                 break;
             case NODE:
                 if (auth != null) {
@@ -421,8 +425,8 @@ final class SalesforceConnectorNodeSettings {
      * Load the authentication from the selected credentials location.
      *
      * @param settings Setting to load authentication from if {@link CredentialsLocationType#FILESYSTEM}.
-     * @param authStore TODO
-     * @return TODO
+     * @param authStore
+     * @return
      * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
      *             be resolved.
      */
