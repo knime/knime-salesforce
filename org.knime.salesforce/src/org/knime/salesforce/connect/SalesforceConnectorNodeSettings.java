@@ -270,9 +270,9 @@ final class SalesforceConnectorNodeSettings {
      */
     void saveSettingsInDialog(final NodeSettingsWO settings) throws IOException, InvalidSettingsException {
         Optional<SalesforceAuthentication> auth = saveSettingsTo(settings, getDialogToNodeExchangeInstance());
-        if (auth.isPresent()) {
+        if (auth.isPresent() && getCredentialsSaveLocation() == CredentialsLocationType.FILESYSTEM) {
             String fsLocation = getFilesystemLocation();
-            CheckUtils.checkSettingNotNull(StringUtils.isNotEmpty(fsLocation), "File system location must not be empty");
+            CheckUtils.checkSetting(StringUtils.isNotEmpty(fsLocation), "File system location must not be empty");
             File credentialsFile = resolveFilesystemLocation(fsLocation).orElseThrow(IllegalStateException::new);
             saveCredentialsToFile(credentialsFile, auth.get());
         }
