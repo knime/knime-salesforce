@@ -52,6 +52,7 @@ import java.util.Optional;
 
 import javax.json.JsonStructure;
 
+import org.knime.base.util.flowvariable.FlowVariableProvider;
 import org.knime.core.data.DataColumnSpecCreator;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.data.RowKey;
@@ -61,6 +62,7 @@ import org.knime.core.node.BufferedDataContainer;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
+import org.knime.core.node.InvalidSettingsException;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
@@ -78,9 +80,13 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
     /**
      * @param authentication
      * @param settings
+     * @param flowVarProvider
+     * @throws InvalidSettingsException
      */
-    public RawOutputSOQLExecutor(final SalesforceAuthentication authentication, final SalesforceSOQLNodeSettings settings) {
-        super(authentication, settings.getSOQL());
+    public RawOutputSOQLExecutor(final SalesforceAuthentication authentication,
+        final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
+        throws InvalidSettingsException {
+        super(authentication, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
         m_settings = settings;
     }
 

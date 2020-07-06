@@ -82,6 +82,7 @@ import javax.swing.border.Border;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
+import org.knime.base.util.flowvariable.FlowVariableResolver;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
@@ -91,10 +92,8 @@ import org.knime.core.node.util.ConvenientComboBoxRenderer;
 import org.knime.core.node.util.FlowVariableListCellRenderer;
 import org.knime.core.node.util.ViewUtils;
 import org.knime.core.node.workflow.FlowVariable;
-import org.knime.core.node.workflow.VariableType.BooleanType;
 import org.knime.core.node.workflow.VariableType.DoubleType;
 import org.knime.core.node.workflow.VariableType.IntType;
-import org.knime.core.node.workflow.VariableType.LongType;
 import org.knime.core.node.workflow.VariableType.StringType;
 import org.knime.core.util.SwingWorkerWithContext;
 import org.knime.salesforce.auth.SalesforceAuthentication;
@@ -258,7 +257,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     }
 
     private void onFlowVarSelected(final FlowVariable v) {
-        String enter = "${" + v.getName() + "}";
+        String enter = FlowVariableResolver.getPlaceHolderForVariable(v);
         m_soqlTextArea.replaceSelection(enter);
         m_flowVarsList.clearSelection();
         m_soqlTextArea.requestFocus();
@@ -293,8 +292,9 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         SalesforceSOQLNodeSettings soqlSettings = new SalesforceSOQLNodeSettings().loadSettingsInDialog(settings);
         DefaultListModel<FlowVariable> flowVarModel = (DefaultListModel<FlowVariable>)m_flowVarsList.getModel();
         flowVarModel.removeAllElements();
-        getAvailableFlowVariables(BooleanType.INSTANCE, StringType.INSTANCE, DoubleType.INSTANCE, IntType.INSTANCE,
-            LongType.INSTANCE).values().stream().forEach(fv -> flowVarModel.addElement(fv));
+        getAvailableFlowVariables(StringType.INSTANCE, DoubleType.INSTANCE, IntType.INSTANCE).values()//
+            .stream()//
+            .forEach(flowVarModel::addElement);
 
         DefaultListModel<Field> fieldModel = (DefaultListModel<Field>)m_fieldList.getModel();
         fieldModel.removeAllElements();

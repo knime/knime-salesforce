@@ -52,6 +52,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
 
+import org.knime.base.util.flowvariable.FlowVariableProvider;
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
@@ -75,7 +76,7 @@ import org.knime.salesforce.rest.soql.RecordsOutputSOQLExecutor;
  * Model of 'Salesforce SOQL' node.
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
-final class SalesforceSOQLNodeModel extends NodeModel {
+final class SalesforceSOQLNodeModel extends NodeModel implements FlowVariableProvider {
 
     private SalesforceSOQLNodeSettings m_settings = new SalesforceSOQLNodeSettings();
 
@@ -99,12 +100,12 @@ final class SalesforceSOQLNodeModel extends NodeModel {
     }
 
     private AbstractSOQLExecutor createSoqlExecutor(final SalesforceAuthentication auth,
-        final SalesforceSOQLNodeSettings settings) {
+        final SalesforceSOQLNodeSettings settings) throws InvalidSettingsException {
         switch (m_settings.getOutputRepresentation()) {
             case RAW:
-                return new RawOutputSOQLExecutor(auth, settings);
+                return new RawOutputSOQLExecutor(auth, settings, this);
             case RECORDS:
-                return new RecordsOutputSOQLExecutor(auth, settings);
+                return new RecordsOutputSOQLExecutor(auth, settings, this);
             default:
                 throw new IllegalStateException("Type not implementation: " + m_settings.getOutputRepresentation());
         }

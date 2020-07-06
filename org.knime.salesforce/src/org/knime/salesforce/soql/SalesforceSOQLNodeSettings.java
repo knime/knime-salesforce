@@ -49,10 +49,13 @@
 package org.knime.salesforce.soql;
 
 import java.util.Arrays;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.util.StringUtil;
+import org.knime.base.util.flowvariable.FlowVariableProvider;
+import org.knime.base.util.flowvariable.FlowVariableResolver;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
@@ -110,6 +113,20 @@ public final class SalesforceSOQLNodeSettings {
      */
     public String getSOQL() {
         return m_soql;
+    }
+
+    /**
+     * @param flowVarProvider
+     * @return The final SOQL
+     * @throws InvalidSettingsException if variables can't be found
+     */
+    public String getSOQLWithFlowVarsReplaced(final FlowVariableProvider flowVarProvider)
+        throws InvalidSettingsException {
+        try {
+            return FlowVariableResolver.parse(m_soql, flowVarProvider);
+        } catch (NoSuchElementException ex) {
+            throw new InvalidSettingsException(ex.getMessage(), ex);
+        }
     }
 
     /**
