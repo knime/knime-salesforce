@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <knimeNode
-	icon="./salesforce_connect.png"
+	icon="./salesforce.png"
 	type="Manipulator" xmlns="http://knime.org/node/v4.1"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
-	<name>Salesforce Connection Extractor</name>
+	<name>Salesforce Authentication Extractor</name>
 	<shortDescription>Extracts Access Token and Instance URL from a Salesforce Connection</shortDescription>
 	<fullDescription>
 		<intro>
@@ -13,6 +13,12 @@
 				refreshed on execution so that downstream nodes will find a valid token upon execution. This node is 
 				usually upstream of a REST node (e.g. <i>GET Request</i>), whereby these nodes will use the instance url
 				and the access token in their configuration.
+			</p>
+			<p>
+				In order to configure the a <i>GET Request</i> (or similar), further manipulate the instance URL by 
+				appending the correct endpoint location (e.g. using <i>String Manipulation (Variable)</i>) and, in the
+				configuration of the <i>GET Request</i> node, add a Request Header called "Authorization" driven
+				by the flow variable produced by this node.
 			</p>
 		</intro>
 		<option name="Refresh token on execute">

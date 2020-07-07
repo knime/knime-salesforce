@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<knimeNode icon="./salesforce_connect.png" type="Source"
+<knimeNode icon="./salesforce.png" type="Source"
 	xmlns="http://knime.org/node/v4.1"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
@@ -8,54 +8,56 @@
 	<fullDescription>
 		<intro>
 		<p>
-			Authenticate with Salesforce. Authentication currently only succeeds with KNIME's test instance on 
-			https://test.salesforce.com
+			Authenticate with Salesforce. The authentication information can be used to query Salesforce 
+			using the <i>Salesforce SOQL</i> node or to extract temporary access tokens used in nodes 
+			such as <i>GET Request</i>.  Note that in order to use this node the KNIME Analytics Platform 
+			needs to be registered with the respective Salesforce domain. Please contact your Salesforce 
+			administrator or <a href="https://www.knime.com/contact">KNIME</a> to get more information. 
 		</p>
-		<p></p>
-	    <p>
-			<b>Important:</b>
-			When choosing the <i>Node</i> credentials storage location,
-			the node saves a refresh token with access to your Microsoft account
-			(with the specified permissions) in the node settings. Before sharing
-			the workflow, you should clear your credentials in the node dialog.
-	    </p>
-			<p />
+		<p>
+			Two types of authentication are supported, <i>OAuth2 Interactive Authentication</i> and
+			<i>Username &amp; Password</i> authentication. If in doubt, use the former as username
+			&amp; password authentication is discouraged according to the Salesforce documentation.  
+		</p>
 		</intro>
-		<tab name="Authenticaion">
+		<tab name="OAuth2 Interactive Authentication">
 			<option name="Authenticate">
-				Press this button to authentication with Salesforce.
-				A page will be opened in your browser, which will ask you to sign in
-				to your Salesforce account. Once you are logged in, you will be asked
-				to accept the permission requests of the KNIME Analytics Platform
-				application if you did not accept the permissions previously. If the
-				authentication succeeded, you will be redirected to a page that
-				states that the verification code has been received and that you may
-				close the window. The status in the node dialog will update to
-				"Authenticated".
-			</option>
-			<option name="Cancel">
-				Cancel a running authentication process.
+				<p>
+					Press this button to authentication with Salesforce.
+					A page will be opened in your browser, which will ask you to sign in
+					to your Salesforce account. Once you are logged in, you will be asked
+					to accept the permission requests of the KNIME Analytics Platform
+					application if you did not accept the permissions previously. If the
+					authentication succeeded, you will be redirected to a page that
+					states that the verification code has been received and that you may
+					close the window. The status in the node dialog will update to
+					"Authenticated". 
+				</p>
+				<p>
+					When choosing the Node credentials storage location, the node saves a
+					refresh token with access to your Salesforce account (with the specified
+					permissions) in the node settings. Before sharing the workflow, you
+					should clear your credentials in the node dialog.
+				</p>
 			</option>
 			<option name="Credentials Storage Location">
 				Select where authentication credentials should be stored:
 				<ul>
 				<li>
-					<b>Memory</b>
-					: The authentication credentials will be kept in memory. 
+					<b>Memory</b>: The authentication credentials will be kept in memory. 
 					They are discarded when closing KNIME. 
 				</li>
 				<li>
-					<b>Local File</b>
-					: The authentication credentials will be saved and loaded to and from the selected
-					file. 
+					<b>Local File</b>: The authentication credentials will be saved and 
+					loaded to and from the selected file. 
 				</li>
 				<li>
-					<b>Node</b>
-					: The authentication credentials will be saved in the node settings. If you choose this
+					<b>Node</b>:
+					The authentication credentials will be saved in the node settings. If you choose this
 					option, the workflow will contain your authentication information after is has been saved. 
 					Thus, access to your Microsoft account will be available to others if you share the workflow. 
 				</li>
-			</ul>
+				</ul>
 			</option>
 			<option name="Clear Selected Credentials">
 				Deletes the authentication credentials stored at the selected location.
@@ -70,8 +72,31 @@
 				with this workflow, all credentials should be cleared beforehand. 
 			</option>
 		</tab>
+		<tab name="Username + Password Authentication">
+			<option name="Credentials">
+				<p>
+					Choose a credentials object to control username and password (generally
+					preferred, especially when used on KNIME Server)
+				</p>
+			</option>
+			<option name="Username &amp; password">
+				<p>
+					Enter username, password and security token directly. Note the password
+					and security token will be saved as part of the node configuration in a
+					weakly encrypted (symmetric) format. The <i>Security Token</i> can be
+					reset in the users's Salesforce Account settings.
+				</p>
+			</option>
+		</tab>
 	</fullDescription>
 	<ports>
-		<outPort index="0" name="Salesforce Authentication">The authentication including the tokens to access remote resources.</outPort>
+		<outPort index="0" name="Salesforce Authentication">
+			The authentication including the tokens to access remote resources.
+			Note the token itself is not saved as part of the port content.
+			Especially when choosing the keep the authentication information "In
+			Memory" (see above) it will be invalid when closing and re-opening the
+			workflow (downstream nodes will fail albeit the node itself shown as
+			executed).
+		</outPort>
  </ports>
 </knimeNode>

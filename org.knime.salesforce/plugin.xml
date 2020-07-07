@@ -4,7 +4,7 @@
    <extension
          point="org.knime.workbench.repository.categories">
       <category
-            icon="icons/salesforce_connect.png"
+            icon="icons/salesforce.png"
             level-id="salesforce"
             locked="true"
             name="Salesforce"

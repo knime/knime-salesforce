@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <knimeNode
-	icon="./salesforce_connect.png"
+	icon="./salesforce.png"
 	type="Manipulator" xmlns="http://knime.org/node/v4.1"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://knime.org/node/v4.1 http://knime.org/node/v4.1.xsd">
@@ -27,6 +27,16 @@
 		</option>
 		<option name="SOQL">
 			The Salesforce Object Query to be run during node execution.
+		</option>
+		<option name="Output Representation">
+			Specifies how the result set is represented. As of now only JSON output is supported (which can be easily
+			parsed using the <i>JSON Path</i> node). <i>Raw JSON</i> returns the result of the Salesforce API call 
+			as-is, whereby different rows in the output represent different 'chunks' of the data.
+			<br/>
+			<i>Records JSON</i> will parse the <i>records</i> array from the result set and split it into different 
+			rows (potentially doing multiple requests to the Salesforce API to retrieve all data). For any query using 
+			<i>count()</i> this array will be empty so set the respective checkbox to only read out the 
+			<i>totalLimit</i> value.
 		</option>
 	</fullDescription>
 	<ports>
