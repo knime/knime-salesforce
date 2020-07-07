@@ -151,5 +151,9 @@ abstract class AuthControllerPanel extends JPanel {
             .get(settings.getNodeInstanceID()).orElse(null));
     }
 
+    void onClose() {
+        m_authenticator.cancel();
+    }
+
 
 }

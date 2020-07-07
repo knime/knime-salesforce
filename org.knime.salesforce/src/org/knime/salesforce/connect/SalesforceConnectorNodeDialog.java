@@ -126,6 +126,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
         if (m_settings != null) {
             InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().remove(m_settings.getNodeInstanceID());
         }
+        m_authControllerPanel.onClose();
     }
 
 }
