@@ -334,7 +334,7 @@ final class SalesforceConnectorNodeSettings {
         try {
             instanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
         } catch (InvalidSettingsException ex) {
-            instanceType = InstanceType.TestInstance;
+            instanceType = InstanceType.ProductionInstance;
         }
         result.m_salesforceInstanceType = instanceType;
         AuthType authType;

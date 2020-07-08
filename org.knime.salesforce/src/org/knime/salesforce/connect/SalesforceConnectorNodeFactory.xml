@@ -88,6 +88,18 @@
 				</p>
 			</option>
 		</tab>
+		<tab name="Instance Type">
+			<option name="Use Production Instance">
+				<p>
+					Uses the production org. If in doubt, use this.  
+				</p>
+			</option>
+			<option name="Use Test Instance">
+				<p>
+					Connects to a Salesforce sandbox instance, which is isolated from the production org.
+				</p>
+			</option>
+		</tab>
 	</fullDescription>
 	<ports>
 		<outPort index="0" name="Salesforce Authentication">
