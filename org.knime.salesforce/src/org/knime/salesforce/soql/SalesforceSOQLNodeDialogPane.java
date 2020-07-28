@@ -48,6 +48,11 @@
  */
 package org.knime.salesforce.soql;
 
+import static org.knime.salesforce.soql.SalesforceObjectSchemaCache.FAILED_CONTENT;
+import static org.knime.salesforce.soql.SalesforceObjectSchemaCache.FAILED_FIELD;
+import static org.knime.salesforce.soql.SalesforceObjectSchemaCache.FETCHING_CONTENT;
+import static org.knime.salesforce.soql.SalesforceObjectSchemaCache.FETCHING_FIELD;
+import static org.knime.salesforce.soql.SalesforceObjectSchemaCache.NO_AUTH_CONTENT;
 import static org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation.RAW;
 import static org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation.RECORDS;
 
@@ -60,10 +65,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
+import java.util.Set;
 
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
@@ -95,10 +97,8 @@ import org.knime.core.node.workflow.FlowVariable;
 import org.knime.core.node.workflow.VariableType.DoubleType;
 import org.knime.core.node.workflow.VariableType.IntType;
 import org.knime.core.node.workflow.VariableType.StringType;
-import org.knime.core.util.SwingWorkerWithContext;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
-import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation;
@@ -109,25 +109,7 @@ import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresenta
  */
 final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
-    public static final SObject NO_AUTH_CONTENT =
-            SObject.of("No Authentication Object available from Node Input", "Not connected to salesforce.com");
-    public static final SObject FETCHING_CONTENT =
-            SObject.of("Retrieving content from salesforce.com", "Fetching Content...");
-    public static final SObject FAILED_CONTENT =
-            SObject.of("Error reading from salesforce.com, check log files for details", "<Failed to fetch list>");
-    public static final SObject PROTOTYPE_LENGTH_CONTENT = SObject.of("", "Account Account Account");
-
-    private static final Field FETCHING_FIELD = Field.of("do_not_use", "Fetching fields...", "void");
-
-    private static final Field FAILED_FIELD = Field.of("do_not_use", "Failed to fetch fields", "void");
-
-    private FetchSObjectsSwingWorker m_fetchSObjectsSwingWorker;
-
-    private FetchFieldsSwingWorker m_fetchFieldsSwingWorker;
-
     private SalesforceAuthentication m_auth;
-
-    private final Map<SObject, Field[]> m_sObjectFieldCache;
 
     private final JComboBox<SObject> m_sObjectsCombo;
     private final JList<Field> m_fieldList;
@@ -139,6 +121,8 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
     private final JCheckBox m_outputAsCount;
 
+    private final SalesforceObjectSchemaCache m_cache;
+
     SalesforceSOQLNodeDialogPane() {
         m_fieldList = new JList<>(new DefaultListModel<>());
         m_flowVarsList = new JList<>(new DefaultListModel<>());
@@ -146,13 +130,10 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_sObjectsCombo = new JComboBox<>(new DefaultComboBoxModel<>());
         m_sObjectsCombo.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
-                onNewSObjectSelected((SObject)m_sObjectsCombo.getSelectedItem());
+                onNewSalesforceObjectSelected((SObject)m_sObjectsCombo.getSelectedItem());
             }
         });
-        m_sObjectFieldCache = new HashMap<>();
-        m_sObjectFieldCache.put(FAILED_CONTENT, new Field[] {FAILED_FIELD});
-        m_sObjectFieldCache.put(FETCHING_CONTENT, new Field[] {});
-        m_sObjectFieldCache.put(NO_AUTH_CONTENT, new Field[] {});
+        m_cache = new SalesforceObjectSchemaCache();
 
         m_outputAsCount = new JCheckBox("Only output size (for `count()` queries)");
 
@@ -178,7 +159,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weighty = 0.0;
-        m_sObjectsCombo.setPrototypeDisplayValue(PROTOTYPE_LENGTH_CONTENT);
+        m_sObjectsCombo.setPrototypeDisplayValue(SObject.of("", "Account Account Account"));
         m_sObjectsCombo.setRenderer(new ConvenientComboBoxRenderer());
         m_sObjectsCombo.setBorder(createEmptyTitledBorder("Salesforce Objects"));
         leftPanel.add(m_sObjectsCombo, gbc);
@@ -305,8 +286,14 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         if (authSpec != null && (m_auth = authSpec.getAuthentication().orElse(null)) != null) {
             sObjectsComboModel.addElement(FETCHING_CONTENT);
             fieldModel.addElement(FETCHING_FIELD);
-            m_fetchSObjectsSwingWorker = new FetchSObjectsSwingWorker();
-            m_fetchSObjectsSwingWorker.execute();
+            m_cache.executeNewSObjectsSwingWorker(m_auth, () -> {
+                DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
+                comboBoxModel.removeAllElements();
+                Set<SObject> sObjects = m_cache.getsObjectFieldCache().keySet();
+                boolean success = !sObjects.contains(FAILED_CONTENT);
+                sObjects.stream().sorted().forEach(comboBoxModel::addElement);
+                m_sObjectsCombo.setEnabled(success);
+            });
         } else {
             m_auth = null;
             sObjectsComboModel.addElement(NO_AUTH_CONTENT);
@@ -321,17 +308,16 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_soqlTextArea.requestFocus();
     }
 
-    void onNewSObjectSelected(final SObject selected) {
+    void onNewSalesforceObjectSelected(final SObject selected) {
         if (!Arrays.asList(FAILED_CONTENT, FETCHING_CONTENT).contains(selected)) {
-            cancelFetchFieldsSwingWorker();
-            Field[] fields = m_sObjectFieldCache.get(selected);
+            m_cache.cancelFetchFieldsSwingWorker();
+            Field[] fields = m_cache.getsObjectFieldCache().get(selected);
             boolean enabled;
             if (fields != null) {
                 enabled = !(fields.length == 1 && fields[0] == FAILED_FIELD);
             } else {
                 enabled = false;
-                m_fetchFieldsSwingWorker = new FetchFieldsSwingWorker(selected);
-                m_fetchFieldsSwingWorker.execute();
+                m_cache.executeNewFieldsSwingWorker(m_auth, selected, s -> onNewSalesforceObjectSelected(s));
                 fields = new Field[] {FETCHING_FIELD};
             }
             m_fieldList.setEnabled(enabled);
@@ -343,81 +329,8 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
     @Override
     public void onClose() {
-        cancelFetchFieldsSwingWorker();
-        cancelFetchSObjectsSwingWorker();
+        m_cache.onClose();
         m_auth = null;
-    }
-
-    private void cancelFetchFieldsSwingWorker() {
-        if (m_fetchFieldsSwingWorker != null && !m_fetchFieldsSwingWorker.isDone()) {
-            m_fetchFieldsSwingWorker.cancel(true);
-        }
-        m_fetchFieldsSwingWorker = null;
-    }
-
-    private void cancelFetchSObjectsSwingWorker() {
-        if (m_fetchSObjectsSwingWorker != null && !m_fetchSObjectsSwingWorker.isDone()) {
-            m_fetchSObjectsSwingWorker.cancel(true);
-        }
-        m_fetchSObjectsSwingWorker = null;
-    }
-
-    private final class FetchSObjectsSwingWorker extends SwingWorkerWithContext<SObject[], Void> {
-
-        @Override
-        protected SObject[] doInBackgroundWithContext() throws Exception {
-            return SalesforceRESTUtil.getSObjects(m_auth);
-        }
-
-        @Override
-        protected void doneWithContext() {
-            SObject[] sObjects = new SObject[] {FAILED_CONTENT};
-            boolean success = false;
-            try {
-                sObjects = get();
-                success = true;
-            } catch (InterruptedException | CancellationException ex) {
-            } catch (ExecutionException ex) {
-                getLogger().error(String.format("Unable to retrieve 'SObjects' from Salesforce (%s): %s",
-                    m_auth.getInstanceURLString(), ex.getCause().getMessage()), ex.getCause());
-            }
-            DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
-            comboBoxModel.removeAllElements();
-            Arrays.stream(sObjects).sorted().forEach(s -> comboBoxModel.addElement(s));
-            m_sObjectsCombo.setEnabled(success);
-        }
-    }
-
-    class FetchFieldsSwingWorker extends SwingWorkerWithContext<Field[], Void> {
-
-        private final SObject m_sObject;
-
-        FetchFieldsSwingWorker(final SObject sObject) {
-            m_sObject = sObject;
-        }
-
-        @Override
-        protected Field[] doInBackgroundWithContext() throws Exception {
-            Field[] fields = SalesforceRESTUtil.getSObjectFields(m_sObject, m_auth);
-            return fields;
-        }
-
-        @Override
-        protected void doneWithContext() {
-            Field[] fields = new Field[] {FETCHING_FIELD};
-            SObject selectedObject = FAILED_CONTENT;
-            try {
-                fields = get();
-                Arrays.sort(fields, (a, b) -> a.getLabel().compareTo(b.getLabel()));
-                m_sObjectFieldCache.put(m_sObject, fields);
-                selectedObject = m_sObject;
-            } catch (InterruptedException | CancellationException ex) {
-            } catch (ExecutionException ex) {
-                getLogger().error(String.format("Unable to fetch fields for object \"%s\" from salesforce (%s): %s",
-                    m_sObject.getName(), m_auth.getInstanceURLString(), ex.getCause().getMessage()), ex.getCause());
-            }
-            onNewSObjectSelected(selectedObject);
-        }
     }
 
 }
