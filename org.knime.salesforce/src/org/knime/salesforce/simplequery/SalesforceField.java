@@ -44,59 +44,76 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Dec 30, 2019 (wiswedel): created
+ *   Jul 26, 2020 (wiswedel): created
  */
-package org.knime.salesforce.rest.gsonbindings.sobjects;
+package org.knime.salesforce.simplequery;
 
 import java.util.Objects;
+import java.util.Optional;
 
-/**
- *
- * @author wiswedel
- */
-public final class SObject implements Comparable<SObject> {
+import org.knime.core.node.NodeLogger;
+import org.knime.salesforce.rest.gsonbindings.fields.Field;
 
-    private String name;
-    private String label;
-    private boolean queryable;
+final class SalesforceField {
 
-    /**
-     * @return the name
-     */
-    public String getName() {
-        return name;
-    }
-    /**
-     * @return the label
-     */
-    public String getLabel() {
-        return label;
+    private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceField.class);
+
+    private final String m_name;
+    private final String m_label;
+    private final SalesforceFieldType m_type;
+
+    SalesforceField(final String name, final String label, final SalesforceFieldType type) {
+        m_name = name;
+        m_label = label;
+        m_type = type;
     }
 
-    /**
-     * @return the queryable
-     */
-    public boolean isQueryable() {
-        return queryable;
+    String getName() {
+        return m_name;
+    }
+
+    String getLabel() {
+        return m_label;
+    }
+
+    SalesforceFieldType getType() {
+        return m_type;
+    }
+
+    static Optional<SalesforceField> fromField(final Field field) {
+        Optional<SalesforceFieldType> typeOpt = SalesforceFieldType.fromIdentifierInSalesforce(field.getType());
+        if (typeOpt.isPresent()) {
+            return Optional.of(new SalesforceField(field.getName(), field.getLabel(), typeOpt.get()));
+        } else {
+            LOGGER.debugWithFormat("Field \"%s\" has an unsupported type (\"%s\") - skipping", field.getName(),
+                field.getType());
+            return Optional.empty();
+        }
     }
 
     @Override
-    public int compareTo(final SObject o) {
-        String thisLabel = Objects.toString(label, "ZZZZZ");
-        String otherLabel = Objects.toString(o.label, "ZZZZZ");
-        return thisLabel.compareTo(otherLabel);
+    public int hashCode() {
+        return Objects.hash(m_name);
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        SalesforceField other = (SalesforceField)obj;
+        return Objects.equals(m_name, other.m_name);
     }
 
     @Override
     public String toString() {
-        return label;
-    }
-
-    public static SObject of(final String name, final String label) {
-        SObject result = new SObject();
-        result.name = name;
-        result.label = label;
-        return result;
+        return String.format("\"%s\" (%s)", m_name, m_type);
     }
 
 }

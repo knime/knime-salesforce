@@ -105,7 +105,7 @@ public abstract class AbstractSOQLExecutor {
      * @param authentication
      * @param soql
      */
-    AbstractSOQLExecutor(final SalesforceAuthentication authentication, final String soql) {
+    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final String soql) {
         m_authentication = CheckUtils.checkArgumentNotNull(authentication);
         m_soql = CheckUtils.checkArgumentNotNull(soql);
     }
@@ -125,7 +125,7 @@ public abstract class AbstractSOQLExecutor {
     public abstract BufferedDataTable execute(final ExecutionContext context)
         throws SalesforceResponseException, CanceledExecutionException;
 
-    JsonStructure execute() throws SalesforceResponseException {
+    protected JsonStructure execute() throws SalesforceResponseException {
         URI uri = m_authentication.uriBuilder().path(SalesforceRESTUtil.QUERY_PATH).queryParam("q", m_soql).build();
         String uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
@@ -152,7 +152,7 @@ public abstract class AbstractSOQLExecutor {
      * @return the totalSize as read from the first request/response. An empty object if not called yet or the response
      * did not contain the field (which I think never happens).
      */
-    OptionalInt getTotalSize() {
+    protected OptionalInt getTotalSize() {
         return m_totalSize;
     }
 
@@ -211,7 +211,7 @@ public abstract class AbstractSOQLExecutor {
         return Optional.empty();
     }
 
-    static JsonStructure[] splitJsonStructureByRecords(final JsonStructure response) {
+    protected static JsonStructure[] splitJsonStructureByRecords(final JsonStructure response) {
         JsonPointer recordsPointer = Json.createPointer("/records");
         if (recordsPointer.containsValue(response)) {
             JsonValue value = recordsPointer.getValue(response);
