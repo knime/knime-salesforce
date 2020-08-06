@@ -72,7 +72,7 @@ import org.knime.core.node.util.filter.NameFilterPanel;
 final class SalesforceFieldFilterPanel extends NameFilterPanel<SalesforceField> {
 
     private static final SalesforceField INVALID_FIELD =
-        new SalesforceField("invalid_field", "Invalid Field", SalesforceFieldType.String);
+        new SalesforceField("invalid_field", "Invalid Field", SalesforceFieldType.STRING);
 
     private SalesforceField[] m_fields;
 
