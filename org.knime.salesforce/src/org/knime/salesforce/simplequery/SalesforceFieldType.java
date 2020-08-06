@@ -77,120 +77,41 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.salesforce.rest.SalesforceResponseException;
 
+/**
+ * Represents and maps possible types returned by the Salesforce API to KNIME cell implementations.
+ *
+ * https://developer.salesforce.com/docs/atlas.en-us.224.0.api.meta/api/primitive_data_types.htm#topic-title
+ * https://developer.salesforce.com/docs/atlas.en-us.224.0.api.meta/api/field_types.htm
+ *
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
+ */
 enum SalesforceFieldType {
-        /** address
-anyType
-base64
-boolean
-combobox
-complexvalue
-currency
-date
-datetime
-double
-email
-encryptedstring
-id
-int
-multipicklist
-percent
-phone
-picklist
-reference
-string
-textarea
-time
-*/
-    String(StringCell.TYPE, json -> {
-        if (json.getValueType() == ValueType.STRING) {
-            return new StringCell(((JsonString)json).getString());
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "string", "phone", "email", "url", "id", "picklist", "multipicklist", "reference", "textarea"),
 
-    Boolean(BooleanCell.TYPE, json -> {
-        if (json.getValueType() == ValueType.FALSE) {
-            return BooleanCell.FALSE;
-        } else if (json.getValueType() == ValueType.TRUE) {
-            return BooleanCell.TRUE;
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a boolean json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "boolean"),
+    STRING(StringCell.TYPE, SalesforceFieldType::jsonToString,
+        "string", "phone", "email", "url", "id", "picklist", "multipicklist", "reference", "textarea"),
 
-    Integer(IntCell.TYPE, json -> {
-        if (json.getValueType() == ValueType.NUMBER) {
-            return new IntCell(((JsonNumber)json).intValueExact());
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "int"),
+    BOOLEAN(BooleanCell.TYPE, SalesforceFieldType::jsonToBoolean, "boolean"),
 
-    Double(DoubleCell.TYPE, json -> {
-        if (json.getValueType() == ValueType.NUMBER) {
-            return new DoubleCell(((JsonNumber)json).doubleValue());
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "double", "currency", "percent"),
+    INTEGER(IntCell.TYPE, SalesforceFieldType::jsonToInt, "int"),
 
-    Base64(BinaryObjectDataCell.TYPE, null, "base64") {
+    DOUBLE(DoubleCell.TYPE, SalesforceFieldType::jsonToDouble, "double", "currency", "percent"),
+
+    DATETIME(ZonedDateTimeCellFactory.TYPE, SalesforceFieldType::jsonToZonedDateTime, "datetime"),
+
+    LOCALTIME(LocalTimeCellFactory.TYPE, SalesforceFieldType::jsonToLocalTime, "time"),
+
+    DATE(LocalDateCellFactory.TYPE, SalesforceFieldType::jsonToLocalDate, "date"),
+
+    ADDRESS(JSONCellFactory.TYPE, JSONCellFactory::create, "address"),
+
+    BASE64(BinaryObjectDataCell.TYPE, null, "base64") {
 
         @Override
         CellCreator newCellCreator(final ExecutionContext ctx) {
-            BinaryObjectCellFactory cellFactory = new BinaryObjectCellFactory(ctx);
-            return json -> {
-                if (json.getValueType() == ValueType.STRING) {
-                    java.lang.String base64 = ((JsonString)json).getString();
-                    byte[] decode = java.util.Base64.getDecoder().decode(base64);
-                    try {
-                        return cellFactory.create(decode);
-                    } catch (IOException ex) {
-                        throw new SalesforceResponseException("Creating file store failed: " + ex.getMessage(), ex);
-                    }
-                } else {
-                    throw new SalesforceResponseException(
-                        java.lang.String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
-                }
-            };
+            return json -> jsonToBinary(new BinaryObjectCellFactory(ctx), json);
         }
 
-    },
-
-    DateTime(ZonedDateTimeCellFactory.TYPE, json -> {
-        if (json.getValueType() == ValueType.STRING) {
-            java.lang.String dtAsString = ((JsonString)json).getString();
-            return ZonedDateTimeCellFactory.create(dtAsString, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX"));
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "datetime"),
-
-    LocalTime(LocalTimeCellFactory.TYPE, json -> {
-        if (json.getValueType() == ValueType.STRING) {
-            return LocalDateCellFactory.create(((JsonString)json).getString());
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "time"),
-
-    Date(LocalDateCellFactory.TYPE, json -> {
-        if (json.getValueType() == ValueType.STRING) {
-            return LocalDateCellFactory.create(((JsonString)json).getString());
-        } else {
-            throw new SalesforceResponseException(
-                java.lang.String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
-        }
-    }, "date"),
-
-    Address(JSONCellFactory.TYPE, JSONCellFactory::create, "address");
+    };
 
     private final DataType m_knimeType;
     private final String[] m_identifiersInSF;
@@ -210,6 +131,11 @@ time
         return m_knimeType;
     }
 
+    /**
+     * A creator used to create the cells for a single column.
+     * @param ctx used for file store backed cell types (binary)
+     * @return the cell creator.
+     */
     CellCreator newCellCreator(final ExecutionContext ctx) {
         return m_jsonToCellFunction;
     }
@@ -229,6 +155,89 @@ time
             .findFirst();
     }
 
+    private static DataCell jsonToBinary(final BinaryObjectCellFactory cellFactory, final JsonValue json) // NOSONAR
+        throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.STRING) {
+            String base64 = ((JsonString)json).getString();
+            byte[] decode = java.util.Base64.getDecoder().decode(base64);
+            try {
+                return cellFactory.create(decode);
+            } catch (IOException ex) {
+                throw new SalesforceResponseException("Creating file store failed: " + ex.getMessage(), ex);
+            }
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToLocalDate(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.STRING) {
+            return LocalDateCellFactory.create(((JsonString)json).getString());
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToLocalTime(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.STRING) {
+            return LocalTimeCellFactory.create(((JsonString)json).getString());
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToZonedDateTime(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.STRING) {
+            String dtAsString = ((JsonString)json).getString();
+            return ZonedDateTimeCellFactory.create(dtAsString, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX"));
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToInt(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.NUMBER) {
+            return new IntCell(((JsonNumber)json).intValueExact());
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToBoolean(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.FALSE) {
+            return BooleanCell.FALSE;
+        } else if (json.getValueType() == ValueType.TRUE) {
+            return BooleanCell.TRUE;
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a boolean json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToString(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.STRING) {
+            return new StringCell(((JsonString)json).getString());
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a string json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    private static DataCell jsonToDouble(final JsonValue json) throws SalesforceResponseException {
+        if (json.getValueType() == ValueType.NUMBER) {
+            return new DoubleCell(((JsonNumber)json).doubleValue());
+        } else {
+            throw new SalesforceResponseException(
+                String.format("not a number json value but %s: %s", json.getValueType(), json.toString()));
+        }
+    }
+
+    /** The lambda that does the actual mapping. */
     @FunctionalInterface
     interface CellCreator {
 
