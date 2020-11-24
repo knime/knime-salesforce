@@ -8,31 +8,31 @@
             level-id="salesforce"
             locked="true"
             name="Salesforce"
-            path="/labs/">
+            path="/toolintegration/">
       </category>
    </extension>
    <extension point="org.knime.workbench.repository.nodes">
       <node
-            category-path="/labs/salesforce"
+            category-path="/toolintegration/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.connect.SalesforceConnectorNodeFactory">
       </node>
       <node
             after="org.knime.salesforce.connect.SalesforceConnectorNodeFactory"
-            category-path="/labs/salesforce"
+            category-path="/toolintegration/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory">
       </node>
       <node
             after="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory"
-            category-path="/labs/salesforce"
+            category-path="/toolintegration/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeFactory"
             hidden="false">
       </node>
       <node
             after="org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeFactory"
-            category-path="/labs/salesforce"
+            category-path="/toolintegration/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.soql.SalesforceSOQLNodeFactory">
       </node>
