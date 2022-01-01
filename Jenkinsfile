@@ -17,7 +17,15 @@ try {
 
 	workflowTests.runTests(
         dependencies: [
-    		repositories: ["knime-base", "knime-core", "knime-salesforce"]
+    		repositories: [
+                "knime-base", 
+                "knime-core",
+                "knime-json",
+                "knime-kerberos",
+                "knime-salesforce",
+                "knime-rest",
+                "knime-xml"
+            ]
         ]
 	)
 
