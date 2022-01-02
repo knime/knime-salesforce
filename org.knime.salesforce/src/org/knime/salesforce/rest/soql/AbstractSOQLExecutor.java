@@ -125,25 +125,33 @@ public abstract class AbstractSOQLExecutor {
     public abstract BufferedDataTable execute(final ExecutionContext context)
         throws SalesforceResponseException, CanceledExecutionException;
 
+    /**
+     * Performs the query and returns the response.
+     *
+     * @return The result
+     * @throws SalesforceResponseException if the result set does not comply with the schema etc
+     */
     protected JsonStructure execute() throws SalesforceResponseException {
-        URI uri = m_authentication.uriBuilder() //
+        var uri = m_authentication.uriBuilder() //
                 .path(SalesforceRESTUtil.QUERY_PATH) //
                 .queryParam("q", "{soql}") // need to use templates for proper encoding, see AP-17072 and
                 .resolveTemplate("soql", m_soql) // https://issues.apache.org/jira/browse/CXF-8553
                 .build();
-        String uriAsString = uri.toString();
+        var uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");
-        Response response = SalesforceRESTUtil.doGet(uri, m_authentication, true);
-        if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
-            Optional<String> errorOpt = SalesforceRESTUtil.readErrorFromResponseBody(response);
-            String error = errorOpt.orElse(response.getStatusInfo().getReasonPhrase());
-            throw new SalesforceResponseException(String.format("Status: %d -- %s", response.getStatus(), error));
+        String body;
+        try (var response = SalesforceRESTUtil.doGet(uri, m_authentication, true)) {
+            if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+                Optional<String> errorOpt = SalesforceRESTUtil.readErrorFromResponseBody(response);
+                String error = errorOpt.orElse(response.getStatusInfo().getReasonPhrase());
+                throw new SalesforceResponseException(String.format("Status: %d -- %s", response.getStatus(), error));
+            }
+            body = response.readEntity(String.class);
         }
-        String body = response.readEntity(String.class);
 
         JsonStructure jsonStructure;
-        try (StringReader reader = new StringReader(body); JsonReader jsonReader = Json.createReader(reader)) {
+        try (var reader = new StringReader(body); var jsonReader = Json.createReader(reader)) {
             jsonStructure = jsonReader.read();
         }
         m_totalSize = readTotalSize(jsonStructure);
