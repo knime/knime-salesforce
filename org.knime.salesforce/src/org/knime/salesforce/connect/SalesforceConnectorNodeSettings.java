@@ -353,7 +353,11 @@ final class SalesforceConnectorNodeSettings {
         } catch (InvalidSettingsException ex1) {
             // ignore, use defaults
         }
-        result.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, "");
+        try {
+            result.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, "");
+        } catch (RuntimeException e) {
+            // might occur when loading workflows saved with a future version of KNIME (different cipher; 4.4 -> 4.5)
+        }
 
         try {
             SalesforceAuthentication auth =
