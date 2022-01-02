@@ -126,7 +126,11 @@ public abstract class AbstractSOQLExecutor {
         throws SalesforceResponseException, CanceledExecutionException;
 
     protected JsonStructure execute() throws SalesforceResponseException {
-        URI uri = m_authentication.uriBuilder().path(SalesforceRESTUtil.QUERY_PATH).queryParam("q", m_soql).build();
+        URI uri = m_authentication.uriBuilder() //
+                .path(SalesforceRESTUtil.QUERY_PATH) //
+                .queryParam("q", "{soql}") // need to use templates for proper encoding, see AP-17072 and
+                .resolveTemplate("soql", m_soql) // https://issues.apache.org/jira/browse/CXF-8553
+                .build();
         String uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");
