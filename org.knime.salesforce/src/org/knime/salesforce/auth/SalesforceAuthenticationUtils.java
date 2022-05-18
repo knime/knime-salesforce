@@ -51,15 +51,24 @@ package org.knime.salesforce.auth;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.MediaType;
+
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.knime.core.node.NodeLogger;
 import org.knime.core.util.DesktopUtil;
 
 import com.github.scribejava.apis.SalesforceApi;
@@ -67,10 +76,8 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
 import com.github.scribejava.core.builder.ServiceBuilder;
 import com.github.scribejava.core.model.OAuth2AccessToken;
 import com.github.scribejava.core.oauth.OAuth20Service;
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractFuture;
-
-import spark.Request;
-import spark.Service;
 
 /**
  * Static utility class to authenticate with Salesforce.
@@ -80,9 +87,11 @@ import spark.Service;
  */
 public class SalesforceAuthenticationUtils {
 
+    private static final NodeLogger LOGGER =  NodeLogger.getLogger(SalesforceAuthenticationUtils.class);
+
     /** The consumer key / API key of the app registration (for KNIME AP) */
     public static final String CLIENT_ID =
-            "3MVG9LzKxa43zqdJIdD5755PBiXKqt29EVi.z6v_mIZbhn0rXJY62p.rUdyLti3mlMU0XR1CfoMjk4iQwXYlI";
+        "3MVG9LzKxa43zqdJIdD5755PBiXKqt29EVi.z6v_mIZbhn0rXJY62p.rUdyLti3mlMU0XR1CfoMjk4iQwXYlI";
 
     /** The consumer secret part of the app registration (for KNIME AP) */
     public static final String CLIENT_SECRET = "678C2BF0272EC1D3E2A6C96AF6315BF14E1C79511728867A8CE7E2449D9BC837";
@@ -110,6 +119,7 @@ public class SalesforceAuthenticationUtils {
      * call does not block until the user has authenticated. Wait until the future is done.
      *
      * Cancel the future to cancel the authentication process.
+     *
      * @param isUseSandbox where to connect to (as per {@link SalesforceApi}.
      *
      * @return A future holding the authentication
@@ -124,38 +134,18 @@ public class SalesforceAuthenticationUtils {
 
             // The OAuth20 service
             final OAuth20Service service = new ServiceBuilder(CLIENT_ID) //
-                    .apiSecret(CLIENT_SECRET) //
-//                    .defaultScope(scope.getScope()) //
-                    .callback(OAUTH_CALLBACK_URL) //
-                    .build(isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance());
+                .apiSecret(CLIENT_SECRET) //
+                .callback(OAUTH_CALLBACK_URL) //
+                .build(isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance());
 
-            // Open the callback webserver
-            final Service callbackServer = Service.ignite().port(OAUTH_CALLBACK_PORT);
-            callbackServer.get(OAUTH_LISTENER_PATH, (request, resp) -> {
-                try {
-                    // Get the auth code
-                    final Optional<String> authCode = getAuthCodeFromRequest(request);
-
-                    if (authCode.isPresent()) {
-                        // Request a token
-                        ZonedDateTime tokensCreatedWhen = ZonedDateTime.now();
-                        final SalesforceToken accessToken = (SalesforceToken)service.getAccessToken(authCode.get());
-
-                        // Set the future result
-                        authFuture.setResult(
-                            new SalesforceAuthentication(accessToken.getInstanceUrl(), accessToken.getAccessToken(),
-                                accessToken.getRefreshToken(), tokensCreatedWhen, isUseSandbox));
-
-                        return OAUTH_SUCCESS_PAGE;
-                    } else {
-                        final String error = getErrorFromRequest(request);
-                        throw new AuthenticationException(error);
-                    }
-                } catch (final Throwable t) {
-                    authFuture.setFailed(t);
-                    return OAUTH_ERROR_PAGE + t.getMessage();
-                }
-            });
+            var callbackServer = new Server(OAUTH_CALLBACK_PORT);
+            var callbackHandler = new OAuthCallbackHandler(service, authFuture, isUseSandbox);
+            callbackServer.setHandler(callbackHandler);
+            try {
+                callbackServer.start();
+            } catch (Exception ex) {
+                throw new AuthenticationException("Could not start callback server: " + ex.getMessage(), ex);
+            }
 
             // Start a thread which closes the service and everything once the authentication is done
             startClosingThread(authFuture, service, callbackServer);
@@ -175,15 +165,69 @@ public class SalesforceAuthenticationUtils {
         } else {
             // Another authentication is already in progress
             // We cannot do this in parallel because we open a webserver with a port
-            throw new AuthenticationInProgressException(
-                "A authentication with Salesforce is already in progress. "
-                    + "Wait until the other authentication process is done or cancel it.");
+            throw new AuthenticationInProgressException("A authentication with Salesforce is already in progress. "
+                + "Wait until the other authentication process is done or cancel it.");
         }
     }
 
+    @SuppressWarnings("resource") // we must not close the servlet output stream
+    private static class OAuthCallbackHandler extends AbstractHandler {
+
+        private final SalesforceAuthenticationFuture m_authFuture;
+
+        private final OAuth20Service m_service;
+
+        private final boolean m_isUseSandbox;
+
+        OAuthCallbackHandler(final OAuth20Service service, final SalesforceAuthenticationFuture authFuture,
+            final boolean isUseSandbox) {
+            m_service = service;
+            m_authFuture = authFuture;
+            m_isUseSandbox = isUseSandbox;
+        }
+
+        @Override
+        public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
+            final HttpServletResponse response) throws IOException, ServletException {
+            if (!OAUTH_LISTENER_PATH.equals(target)) {
+                response.sendError(404);
+                return;
+            }
+
+            try {
+                // Get the auth code
+                final Optional<String> authCode = getAuthCodeFromRequest(request);
+                if (authCode.isPresent()) {
+                    // Request a token
+                    ZonedDateTime tokensCreatedWhen = ZonedDateTime.now();
+                    final SalesforceToken accessToken = (SalesforceToken)m_service.getAccessToken(authCode.get());
+                    // Set the future result
+                    m_authFuture.setResult(
+                        new SalesforceAuthentication(accessToken.getInstanceUrl(), accessToken.getAccessToken(),
+                            accessToken.getRefreshToken(), tokensCreatedWhen, m_isUseSandbox));
+                    configureResponse(response, 200, OAUTH_SUCCESS_PAGE);
+                } else {
+                    throw new AuthenticationException(getErrorFromRequest(request));
+                }
+            } catch (final Throwable t) {
+                m_authFuture.setFailed(t);
+                configureResponse(response, 400, OAUTH_ERROR_PAGE + t.getMessage());
+            }
+            response.getOutputStream().flush();
+        }
+    }
+
+    @SuppressWarnings("resource") // we must not close the servlet output stream
+    private static void configureResponse(final HttpServletResponse response, final int status, final String message)
+        throws IOException {
+        response.setContentType(MediaType.TEXT_HTML);
+        response.setStatus(status);
+        response.getOutputStream().write(message.getBytes(StandardCharsets.UTF_8));
+    }
+
     /** Starts a thread which waits until the future is done and closes the service and stops the callback server */
-    private static void startClosingThread(final Future<SalesforceAuthentication> authFuture, final OAuth20Service service,
-        final Service callbackServer) {
+    private static void startClosingThread(final Future<SalesforceAuthentication> authFuture,
+        final OAuth20Service service, final Server callbackServer) {
         new Thread(() -> {
             // Wait until the authentication is done
             try {
@@ -201,48 +245,46 @@ public class SalesforceAuthenticationUtils {
                 // Ignore
             }
             // Check that everything gets closed and stopped correctly
-            callbackServer.stop();
+            try {
+                callbackServer.stop();
+            } catch (Exception ex) {
+                LOGGER.warn("Could not stop OAuth callback server" +  ex.getMessage(), ex);
+            }
             OAUTH_IN_PROGRESS.set(false);
         }).start();
 
     }
 
     /** Get the auth code from the parameters of a request */
-    private static Optional<String> getAuthCodeFromRequest(final Request request) {
-        if (request.queryParams().contains("code")) {
-            final String authCode = request.queryParamsValues("code")[0];
-            if (!authCode.trim().isEmpty()) {
-                return Optional.of(authCode);
-            }
-        }
-        return Optional.empty();
+    private static Optional<String> getAuthCodeFromRequest(final HttpServletRequest request) {
+        return Optional.ofNullable(request.getParameter("code")).map(Strings::emptyToNull);
     }
 
     /** Parses the error from the request parameters (if present) and returns a formated error string */
-    private static String getErrorFromRequest(final Request request) {
-        final StringBuilder error = new StringBuilder();
-        final Set<String> params = request.queryParams();
+    private static String getErrorFromRequest(final HttpServletRequest request) {
+        final StringBuilder errorMessage = new StringBuilder();
 
         // Error parameter
-        if (params.contains("error")) {
-            final String[] errors = request.queryParamsValues("error");
-            if (errors.length > 1) {
-                error.append("Errors: ").append(Arrays.toString(errors));
-            } else if (errors.length == 1) {
-                error.append("Error: ").append(errors[0]);
+        var errorParamValues = request.getParameterValues("error");
+        if (errorParamValues != null) {
+            if (errorParamValues.length > 1) {
+                errorMessage.append("Errors: ").append(Arrays.toString(errorParamValues));
+            } else if (errorParamValues.length == 1) {
+                errorMessage.append("Error: ").append(errorParamValues[0]);
             }
         }
 
         // Error description parameter
-        if (params.contains("error_description")) {
-            final String[] errors = request.queryParamsValues("error_description");
-            if (errors.length > 1) {
-                error.append("\nError descriptions: ").append(Arrays.toString(errors));
-            } else if (errors.length == 1) {
-                error.append("\nError description: ").append(errors[0]);
+        var errorDescParamValues = request.getParameterValues("error_description");
+        if (errorDescParamValues != null) {
+            if (errorDescParamValues.length > 1) {
+                errorMessage.append("\nError descriptions: ").append(Arrays.toString(errorDescParamValues));
+            } else if (errorDescParamValues.length == 1) {
+                errorMessage.append("\nError description: ").append(errorDescParamValues[0]);
             }
         }
-        return error.toString();
+
+        return errorMessage.toString();
     }
 
     /**
@@ -305,8 +347,8 @@ public class SalesforceAuthenticationUtils {
     }
 
     /**
-     * An exception that is thrown if the authentication with Salesforce failed because another
-     * authentication is already in progress.
+     * An exception that is thrown if the authentication with Salesforce failed because another authentication is
+     * already in progress.
      */
     public static final class AuthenticationInProgressException extends AuthenticationException {
         private static final long serialVersionUID = 1L;
