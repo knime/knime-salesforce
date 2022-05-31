@@ -55,6 +55,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.knime.core.node.NodeLogger;
+import org.knime.core.node.workflow.NodeContext;
+import org.knime.core.node.workflow.NodeID;
+import org.knime.core.util.Pair;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 
 /**
@@ -70,7 +73,7 @@ public final class InMemoryAuthenticationStore {
     private static InMemoryAuthenticationStore globalInstance;
     private static InMemoryAuthenticationStore dialogToNodeExchangeInstance;
 
-    private Map<UUID, SalesforceAuthentication> m_dataStore = Collections.synchronizedMap(new HashMap<>());
+    private Map<Pair<UUID, NodeID>, SalesforceAuthentication> m_dataStore = Collections.synchronizedMap(new HashMap<>());
 
     private InMemoryAuthenticationStore() {
     }
@@ -104,9 +107,10 @@ public final class InMemoryAuthenticationStore {
      * @param value the auth object to cache
      */
     public void put(final UUID key, final SalesforceAuthentication value) {
+        var id = NodeContext.getContext().getNodeContainer().getID();
         if (value == null) {
             remove(key);
-        } else if (m_dataStore.put(key, value) == null) {
+        } else if (m_dataStore.put(Pair.create(key, id), value) == null) {
             LOGGER.debugWithFormat("Added authentication object with ID %s to %s instance (total count: %d)",
                 key.toString(), getTypeForLogging(), m_dataStore.size());
         }
@@ -119,7 +123,8 @@ public final class InMemoryAuthenticationStore {
      * @return The auth for the specified key
      */
     public Optional<SalesforceAuthentication> get(final UUID key) {
-        return Optional.ofNullable(m_dataStore.get(key));
+        var id = NodeContext.getContext().getNodeContainer().getID();
+        return Optional.ofNullable(m_dataStore.get(Pair.create(key, id)));
     }
 
     /**
@@ -128,7 +133,8 @@ public final class InMemoryAuthenticationStore {
      * @param key The key to remove the value of.
      */
     public void remove(final UUID key) {
-        if (m_dataStore.remove(key) != null) {
+        var id = NodeContext.getContext().getNodeContainer().getID();
+        if (m_dataStore.remove(Pair.create(key, id)) != null) {
             LOGGER.debugWithFormat("Removed authentication object with ID %s from %s instance (total count: %d)",
                 key.toString(), getTypeForLogging(), m_dataStore.size());
         }
