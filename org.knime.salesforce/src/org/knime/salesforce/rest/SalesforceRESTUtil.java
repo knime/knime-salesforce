@@ -144,30 +144,31 @@ public final class SalesforceRESTUtil {
         formData.put("client_secret", Collections.singletonList(SalesforceAuthenticationUtils.CLIENT_SECRET));
         formData.put("username", Collections.singletonList(user));
         formData.put("password", Collections.singletonList(password + securityToken));
-        Response response = client.form(new Form(formData));
-        if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+        try (Response response = client.form(new Form(formData))) {
+            if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+                String body = response.readEntity(String.class);
+                String errorDescription = null;
+                JsonStructure json = readAsJsonStructure(body);
+                JsonValue errorDescriptionValue = json.getValue("/error_description");
+                errorDescription = errorDescriptionValue != null ? ((JsonString)errorDescriptionValue).getString() : null;
+                throw new SalesforceResponseException(
+                    String.format("Authentication failed (status %d): \"%s\"%s", response.getStatus(), //
+                        response.getStatusInfo().getReasonPhrase(), //
+                        errorDescription != null ? (" - error: \"" + errorDescription + "\"") : ""));
+            }
             String body = response.readEntity(String.class);
-            String errorDescription = null;
             JsonStructure json = readAsJsonStructure(body);
-            JsonValue errorDescriptionValue = json.getValue("/error_description");
-            errorDescription = errorDescriptionValue != null ? ((JsonString)errorDescriptionValue).getString() : null;
-            throw new SalesforceResponseException(
-                String.format("Authentication failed (status %d): \"%s\"%s", response.getStatus(), //
-                    response.getStatusInfo().getReasonPhrase(), //
-                    errorDescription != null ? (" - error: \"" + errorDescription + "\"") : ""));
+            JsonValue accessTokenValue = json.getValue("/access_token");
+            JsonValue instanceURLValue = json.getValue("/instance_url");
+            JsonValue issuedAtValue = json.getValue("/issued_at");
+            return new SalesforceAuthentication(//
+                ((JsonString)instanceURLValue).getString(), //
+                ((JsonString)accessTokenValue).getString(), //
+                /*refresh-token*/null, //
+                Instant.ofEpochMilli(Long.parseLong(((JsonString)issuedAtValue).getString()))
+                    .atZone(ZoneId.systemDefault()), //
+                isUseSandbox);
         }
-        String body = response.readEntity(String.class);
-        JsonStructure json = readAsJsonStructure(body);
-        JsonValue accessTokenValue = json.getValue("/access_token");
-        JsonValue instanceURLValue = json.getValue("/instance_url");
-        JsonValue issuedAtValue = json.getValue("/issued_at");
-        return new SalesforceAuthentication(//
-            ((JsonString)instanceURLValue).getString(), //
-            ((JsonString)accessTokenValue).getString(), //
-            /*refresh-token*/null, //
-            Instant.ofEpochMilli(Long.parseLong(((JsonString)issuedAtValue).getString()))
-                .atZone(ZoneId.systemDefault()), //
-            isUseSandbox);
     }
 
     /** Simple String to JSON conversion.
@@ -190,6 +191,7 @@ public final class SalesforceRESTUtil {
      * @return the response
      * @throws SalesforceResponseException
      */
+    @SuppressWarnings("resource")
     public static Response doGet(final URI uri, final SalesforceAuthentication auth,
         final boolean refreshTokenIff) throws SalesforceResponseException {
         final WebClient client = getClient(uri, auth);
@@ -202,6 +204,7 @@ public final class SalesforceRESTUtil {
                 "Received %s (%d) -- attempting to refresh the access token and retry",
                 Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
             SalesforceAuthentication newAuth = refreshToken(auth);
+            response.close();
             response = doGet(uri, newAuth, false);
         }
         return response;
@@ -259,8 +262,9 @@ public final class SalesforceRESTUtil {
      */
     public static SObject[] getSObjects(final SalesforceAuthentication auth) throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECTS_PATH).build();
-        Response response = doGet(uri, auth, true);
-        return checkResponse(response, SObjects.class).getSobjects();
+        try (Response response = doGet(uri, auth, true)) {
+            return checkResponse(response, SObjects.class).getSobjects();
+        }
     }
 
     /** Read objects from Salesforce. Used to populate components in the dialog UI.
@@ -272,8 +276,9 @@ public final class SalesforceRESTUtil {
     public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth)
         throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECT_FIELDS_PATH).build(object.getName().toString());
-        Response response = doGet(uri, auth, true);
-        return checkResponse(response, SObjectDescription.class).getFields();
+        try (Response response = doGet(uri, auth, true)) {
+            return checkResponse(response, SObjectDescription.class).getFields();
+        }
     }
 
     /** Try to parse exception/errors from Salesforce.
