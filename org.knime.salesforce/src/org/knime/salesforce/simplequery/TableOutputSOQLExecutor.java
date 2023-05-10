@@ -54,12 +54,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javax.json.Json;
-import javax.json.JsonPointer;
-import javax.json.JsonStructure;
-import javax.json.JsonValue;
-import javax.json.JsonValue.ValueType;
-
 import org.knime.core.data.DataCell;
 import org.knime.core.data.DataColumnSpec;
 import org.knime.core.data.DataTableSpec;
@@ -72,12 +66,18 @@ import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
+import org.knime.core.util.JsonUtil;
 import org.knime.core.util.UniqueNameGenerator;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 import org.knime.salesforce.simplequery.SalesforceFieldType.CellCreator;
 import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.DisplayName;
+
+import jakarta.json.JsonPointer;
+import jakarta.json.JsonStructure;
+import jakarta.json.JsonValue;
+import jakarta.json.JsonValue.ValueType;
 
 /**
  * Runs the SOQL and reads the result using some JSon paths.
@@ -133,7 +133,7 @@ public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
         throws SalesforceResponseException, CanceledExecutionException {
         BufferedDataContainer container = context.createDataContainer(createSpec());
         FieldReader[] fieldReaders = Arrays.stream(m_settings.getObjectFields()) //
-                .map(f -> new FieldReader(Json.createPointer("/" + f.getName()), f.getType(), context))//
+            .map(f -> new FieldReader(JsonUtil.getProvider().createPointer("/" + f.getName()), f.getType(), context))//
                 .toArray(FieldReader[]::new);
         context.setMessage("Invoking Salesforce REST API");
         JsonStructure nextResults = execute();

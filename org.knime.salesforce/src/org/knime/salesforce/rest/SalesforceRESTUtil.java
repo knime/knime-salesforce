@@ -57,12 +57,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
-import javax.json.Json;
-import javax.json.JsonPointer;
-import javax.json.JsonReader;
-import javax.json.JsonString;
-import javax.json.JsonStructure;
-import javax.json.JsonValue;
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.core.Form;
 import javax.ws.rs.core.MediaType;
@@ -78,6 +72,7 @@ import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.transport.http.HTTPConduit;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.core.util.JsonUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.SalesforceAuthenticationUtils;
 import org.knime.salesforce.auth.SalesforceAuthenticationUtils.AuthenticationException;
@@ -90,6 +85,12 @@ import org.knime.salesforce.rest.gsonbindings.sobjects.SObjects;
 import com.github.scribejava.apis.SalesforceApi;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+
+import jakarta.json.JsonPointer;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
+import jakarta.json.JsonStructure;
+import jakarta.json.JsonValue;
 
 /**
  * Static methods that use the Salesforce
@@ -176,7 +177,8 @@ public final class SalesforceRESTUtil {
      * @return Json Object
      */
     public static JsonStructure readAsJsonStructure(final String body) {
-        try (StringReader reader = new StringReader(body); JsonReader jsonReader = Json.createReader(reader)) {
+        try (StringReader reader = new StringReader(body);
+                JsonReader jsonReader = JsonUtil.getProvider().createReader(reader)) {
             return jsonReader.read();
         }
     }
@@ -290,7 +292,7 @@ public final class SalesforceRESTUtil {
         JsonStructure jsonError = readAsJsonStructure(errorBody);
         // the list of pointers will probably grow over time.
         for (String pointerS : Arrays.asList("/0/message")) {
-            JsonPointer pointer = Json.createPointer(pointerS);
+            JsonPointer pointer = JsonUtil.getProvider().createPointer(pointerS);
             if (pointer.containsValue(jsonError)) {
                 JsonValue message = pointer.getValue(jsonError);
                 if (message instanceof JsonString) {

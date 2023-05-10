@@ -50,8 +50,6 @@ package org.knime.salesforce.rest.soql;
 
 import java.util.Optional;
 
-import javax.json.JsonStructure;
-
 import org.knime.base.util.flowvariable.FlowVariableProvider;
 import org.knime.core.data.DataColumnSpecCreator;
 import org.knime.core.data.DataTableSpec;
@@ -66,6 +64,8 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
+
+import jakarta.json.JsonStructure;
 
 /**
  * Runs the SOQL and returns it in

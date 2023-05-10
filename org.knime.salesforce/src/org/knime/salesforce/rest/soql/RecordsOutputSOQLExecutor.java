@@ -48,10 +48,6 @@
  */
 package org.knime.salesforce.rest.soql;
 
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonStructure;
-
 import org.knime.base.util.flowvariable.FlowVariableProvider;
 import org.knime.core.data.RowKey;
 import org.knime.core.data.def.DefaultRow;
@@ -61,9 +57,13 @@ import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
+import org.knime.core.util.JsonUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
+
+import jakarta.json.JsonObject;
+import jakarta.json.JsonStructure;
 
 /**
  * Runs the SOQL and returns it in
@@ -95,8 +95,11 @@ public class RecordsOutputSOQLExecutor extends RawOutputSOQLExecutor {
         String sizeAsString = String.format("(%s total records)",
             getTotalSize().isPresent() ? Integer.toString(getTotalSize().getAsInt()) : "unknown number of ");
         if (getSettings().isOutputAsCount()) {
-            JsonObject sizeObject = Json.createObjectBuilder().add("totalSize", getTotalSize().orElseThrow(
-                () -> new SalesforceResponseException("No 'totalSize' key in Salesforce API response"))).build();
+            JsonObject sizeObject = JsonUtil.getProvider().createObjectBuilder()
+                .add("totalSize",
+                    getTotalSize().orElseThrow(
+                        () -> new SalesforceResponseException("No 'totalSize' key in Salesforce API response")))
+                .build();
             container.addRowToTable(
                 new DefaultRow(RowKey.createRowKey(0L), JSONCellFactory.create(sizeObject)));
         } else {

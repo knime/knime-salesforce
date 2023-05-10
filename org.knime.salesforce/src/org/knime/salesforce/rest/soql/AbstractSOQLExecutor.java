@@ -53,15 +53,6 @@ import java.net.URI;
 import java.util.Optional;
 import java.util.OptionalInt;
 
-import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonNumber;
-import javax.json.JsonPointer;
-import javax.json.JsonReader;
-import javax.json.JsonString;
-import javax.json.JsonStructure;
-import javax.json.JsonValue;
-import javax.json.JsonValue.ValueType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
@@ -72,9 +63,19 @@ import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.core.util.JsonUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.SalesforceResponseException;
+
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonPointer;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
+import jakarta.json.JsonStructure;
+import jakarta.json.JsonValue;
+import jakarta.json.JsonValue.ValueType;
 
 /**
  * Used by 'Salesforce SOQL' to run the query. The class hierarchy is mostly due to different output type
@@ -151,7 +152,7 @@ public abstract class AbstractSOQLExecutor {
         }
 
         JsonStructure jsonStructure;
-        try (var reader = new StringReader(body); var jsonReader = Json.createReader(reader)) {
+        try (var reader = new StringReader(body); var jsonReader = JsonUtil.getProvider().createReader(reader)) {
             jsonStructure = jsonReader.read();
         }
         m_totalSize = readTotalSize(jsonStructure);
@@ -188,7 +189,8 @@ public abstract class AbstractSOQLExecutor {
         String body = response.readEntity(String.class);
 
         JsonStructure jsonStructure;
-        try (StringReader reader = new StringReader(body); JsonReader jsonReader = Json.createReader(reader)) {
+        try (StringReader reader = new StringReader(body);
+                JsonReader jsonReader = JsonUtil.getProvider().createReader(reader)) {
             jsonStructure = jsonReader.read();
         }
         m_nextRecordsUrlString = readNextRecordsUrlString(jsonStructure);
@@ -197,7 +199,7 @@ public abstract class AbstractSOQLExecutor {
 
 
     private static OptionalInt readTotalSize(final JsonStructure response) {
-        JsonPointer sizePointer = Json.createPointer("/totalSize");
+        JsonPointer sizePointer = JsonUtil.getProvider().createPointer("/totalSize");
         if (sizePointer.containsValue(response)) {
             JsonValue value = sizePointer.getValue(response);
             if (value.getValueType() == ValueType.NUMBER) {
@@ -210,7 +212,7 @@ public abstract class AbstractSOQLExecutor {
     private static Optional<String> readNextRecordsUrlString(final JsonStructure response)
         throws SalesforceResponseException {
         String nextRecordsUrlFieldName = "nextRecordsUrl";
-        JsonPointer urlPointer = Json.createPointer("/" + nextRecordsUrlFieldName);
+        JsonPointer urlPointer = JsonUtil.getProvider().createPointer("/" + nextRecordsUrlFieldName);
         if (urlPointer.containsValue(response)) {
             JsonValue value = urlPointer.getValue(response);
             if (value.getValueType() != ValueType.STRING) {
@@ -224,7 +226,7 @@ public abstract class AbstractSOQLExecutor {
     }
 
     protected static JsonStructure[] splitJsonStructureByRecords(final JsonStructure response) {
-        JsonPointer recordsPointer = Json.createPointer("/records");
+        JsonPointer recordsPointer = JsonUtil.getProvider().createPointer("/records");
         if (recordsPointer.containsValue(response)) {
             JsonValue value = recordsPointer.getValue(response);
             if (value.getValueType() == ValueType.ARRAY) {
