@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.ws.rs.core.MediaType;
 
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
@@ -78,6 +77,8 @@ import com.github.scribejava.core.model.OAuth2AccessToken;
 import com.github.scribejava.core.oauth.OAuth20Service;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractFuture;
+
+import jakarta.ws.rs.core.MediaType;
 
 /**
  * Static utility class to authenticate with Salesforce.

@@ -53,8 +53,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
-import javax.ws.rs.core.UriBuilder;
-
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.knime.core.node.InvalidSettingsException;
@@ -64,6 +62,8 @@ import org.knime.core.node.util.CheckUtils;
 
 import com.github.scribejava.apis.SalesforceApi;
 import com.github.scribejava.apis.salesforce.SalesforceToken;
+
+import jakarta.ws.rs.core.UriBuilder;
 
 /**
  * Represents token information to authenticate with Salesforce.
