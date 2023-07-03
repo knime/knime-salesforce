@@ -18,6 +18,8 @@ try {
 	workflowTests.runTests(
         dependencies: [
     		repositories: [
+    		"knime-credentials-base",
+    		"knime-gateway",
                 "knime-base", 
                 "knime-core",
                 "knime-json",
