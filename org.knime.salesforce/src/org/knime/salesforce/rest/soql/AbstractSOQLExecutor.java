@@ -73,7 +73,6 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
 import jakarta.json.JsonValue.ValueType;
-import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 
 /**
@@ -140,15 +139,14 @@ public abstract class AbstractSOQLExecutor {
         var uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");
-        String body;
-        try (var response = SalesforceRESTUtil.doGet(uri, m_authentication, true)) {
+        String body = SalesforceRESTUtil.doGet(uri, m_authentication, true, response -> {
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 Optional<String> errorOpt = SalesforceRESTUtil.readErrorFromResponseBody(response);
                 String error = errorOpt.orElse(response.getStatusInfo().getReasonPhrase());
                 throw new SalesforceResponseException(String.format("Status: %d -- %s", response.getStatus(), error));
             }
-            body = response.readEntity(String.class);
-        }
+            return response.readEntity(String.class);
+        });
 
         JsonStructure jsonStructure;
         try (var reader = new StringReader(body); var jsonReader = JsonUtil.getProvider().createReader(reader)) {
@@ -177,15 +175,16 @@ public abstract class AbstractSOQLExecutor {
         }
         URI uri = m_authentication.uriBuilder().path(m_nextRecordsUrlString.get()).build();
         LOGGER.debugWithFormat("Reading next result set (%s)", m_nextRecordsUrlString.get());
-        Response response = SalesforceRESTUtil.doGet(uri, m_authentication, true);
-        if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
-            String errorBody  = response.readEntity(String.class);
-            JsonStructure jsonError = SalesforceRESTUtil.readAsJsonStructure(errorBody);
-            JsonValue message = jsonError.getValue("/0/message");
-            throw new SalesforceResponseException(
-                String.format("Status: %d -- %s", response.getStatus(), ((JsonString)message).getString()));
-        }
-        String body = response.readEntity(String.class);
+        String body = SalesforceRESTUtil.doGet(uri, m_authentication, true, response -> {
+            if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+                String errorBody  = response.readEntity(String.class);
+                JsonStructure jsonError = SalesforceRESTUtil.readAsJsonStructure(errorBody);
+                JsonValue message = jsonError.getValue("/0/message");
+                throw new SalesforceResponseException(
+                    String.format("Status: %d -- %s", response.getStatus(), ((JsonString)message).getString()));
+            }
+            return response.readEntity(String.class);
+        });
 
         JsonStructure jsonStructure;
         try (StringReader reader = new StringReader(body);

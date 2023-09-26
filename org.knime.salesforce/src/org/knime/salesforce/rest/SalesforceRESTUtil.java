@@ -57,6 +57,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.apache.commons.lang3.Functions;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.transport.http.HTTPConduit;
@@ -168,6 +169,8 @@ public final class SalesforceRESTUtil {
                 Instant.ofEpochMilli(Long.parseLong(((JsonString)issuedAtValue).getString()))
                     .atZone(ZoneId.systemDefault()), //
                 isUseSandbox);
+        } finally {
+            client.close();
         }
     }
 
@@ -184,31 +187,36 @@ public final class SalesforceRESTUtil {
 
     /**
      * Perform a GET request.
+     * @param <R> result type
      *
      * @param uri
      * @param auth
      * @param refreshTokenIff if true and the auth object contains refresh token, it will attempt to refresh the access
      *            token (and also save it in auth).
+     * @param callback response transformer callback
      * @return the response
      * @throws SalesforceResponseException
      */
-    @SuppressWarnings("resource")
-    public static Response doGet(final URI uri, final SalesforceAuthentication auth,
-        final boolean refreshTokenIff) throws SalesforceResponseException {
+    public static <R> R doGet(final URI uri, final SalesforceAuthentication auth, final boolean refreshTokenIff,
+            final Functions.FailableFunction<Response, R, SalesforceResponseException> callback)
+            throws SalesforceResponseException {
         final WebClient client = getClient(uri, auth);
         client.accept(MediaType.APPLICATION_JSON);
         client.acceptEncoding("deflate");
-        Response response = client.get();
-        boolean refreshEnabled = refreshTokenIff && auth.getRefreshToken().isPresent();
-        if (response.getStatus() == Status.UNAUTHORIZED.getStatusCode() && refreshEnabled) {
-            NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat(
-                "Received %s (%d) -- attempting to refresh the access token and retry",
-                Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
-            SalesforceAuthentication newAuth = refreshToken(auth);
-            response.close();
-            response = doGet(uri, newAuth, false);
+        try (Response response = client.get()) {
+            boolean refreshEnabled = refreshTokenIff && auth.getRefreshToken().isPresent();
+            if (response.getStatus() == Status.UNAUTHORIZED.getStatusCode() && refreshEnabled) {
+                NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat(
+                    "Received %s (%d) -- attempting to refresh the access token and retry",
+                    Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
+                SalesforceAuthentication newAuth = refreshToken(auth);
+                response.close();
+                return doGet(uri, newAuth, false, callback);
+            }
+            return callback.apply(response);
+        } finally {
+            client.close();
         }
-        return response;
     }
 
     /**
@@ -263,9 +271,7 @@ public final class SalesforceRESTUtil {
      */
     public static SObject[] getSObjects(final SalesforceAuthentication auth) throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECTS_PATH).build();
-        try (Response response = doGet(uri, auth, true)) {
-            return checkResponse(response, SObjects.class).getSobjects();
-        }
+        return doGet(uri, auth, true, response -> checkResponse(response, SObjects.class).getSobjects());
     }
 
     /** Read objects from Salesforce. Used to populate components in the dialog UI.
@@ -277,9 +283,7 @@ public final class SalesforceRESTUtil {
     public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth)
         throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECT_FIELDS_PATH).build(object.getName().toString());
-        try (Response response = doGet(uri, auth, true)) {
-            return checkResponse(response, SObjectDescription.class).getFields();
-        }
+        return doGet(uri, auth, true, response -> checkResponse(response, SObjectDescription.class).getFields());
     }
 
     /** Try to parse exception/errors from Salesforce.
