@@ -2,5 +2,7 @@
 **/target/
 */build/
 **/.flattened-pom.xml
+**/.polyglot.META-INF
+**/.polyglot.feature.xml
 **/.polyglot.build.properties
 **/CHANGELOG.md
