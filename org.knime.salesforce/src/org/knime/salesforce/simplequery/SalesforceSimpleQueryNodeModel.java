@@ -63,7 +63,6 @@ import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.util.CheckUtils;
-import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 
@@ -82,16 +81,18 @@ final class SalesforceSimpleQueryNodeModel extends NodeModel {
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
         CheckUtils.checkSettingNotNull(m_settings, "No configuration set");
-        SalesforceAuthentication auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
-        return new PortObjectSpec[] {new TableOutputSOQLExecutor(auth, m_settings).createOutputSpec().orElse(null)};
+        final var auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
+        final var timeouts = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getTimeouts();
+        return new PortObjectSpec[]{
+            new TableOutputSOQLExecutor(auth, timeouts, m_settings).createOutputSpec().orElse(null)};
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inObjects, final ExecutionContext exec) throws Exception {
-        SalesforceAuthentication auth =
-            ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
-        TableOutputSOQLExecutor executor = new TableOutputSOQLExecutor(auth, m_settings);
-        BufferedDataTable table = executor.execute(exec);
+        final var auth = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
+        final var timeouts = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getTimeouts();
+        final var executor = new TableOutputSOQLExecutor(auth, timeouts, m_settings);
+        final BufferedDataTable table = executor.execute(exec);
         return new PortObject[] {table};
     }
 

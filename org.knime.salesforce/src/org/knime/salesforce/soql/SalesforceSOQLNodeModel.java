@@ -68,6 +68,7 @@ import org.knime.core.node.port.PortType;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 import org.knime.salesforce.rest.soql.RawOutputSOQLExecutor;
 import org.knime.salesforce.rest.soql.RecordsOutputSOQLExecutor;
@@ -86,29 +87,28 @@ final class SalesforceSOQLNodeModel extends NodeModel implements FlowVariablePro
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
-        SalesforceAuthentication auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
-        Optional<DataTableSpec> outSpec = createSoqlExecutor(auth, m_settings).createOutputSpec();
+        final var auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
+        final var timeouts = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getTimeouts();
+        Optional<DataTableSpec> outSpec = createSoqlExecutor(auth, timeouts, m_settings).createOutputSpec();
         return outSpec.map(s -> new PortObjectSpec[] {s}).orElse(null);
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inObjects, final ExecutionContext exec) throws Exception {
-        SalesforceAuthentication auth =
-            ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
-        AbstractSOQLExecutor executor = createSoqlExecutor(auth, m_settings);
+        final var auth = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
+        final var timeouts = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getTimeouts();
+        final var executor = createSoqlExecutor(auth, timeouts, m_settings);
         return new PortObject[] {executor.execute(exec)};
     }
 
     private AbstractSOQLExecutor createSoqlExecutor(final SalesforceAuthentication auth,
-        final SalesforceSOQLNodeSettings settings) throws InvalidSettingsException {
-        switch (m_settings.getOutputRepresentation()) {
-            case RAW:
-                return new RawOutputSOQLExecutor(auth, settings, this);
-            case RECORDS:
-                return new RecordsOutputSOQLExecutor(auth, settings, this);
-            default:
-                throw new IllegalStateException("Type not implementation: " + m_settings.getOutputRepresentation());
-        }
+        final Timeouts timeouts, final SalesforceSOQLNodeSettings settings) throws InvalidSettingsException {
+        return switch (m_settings.getOutputRepresentation()) {
+            case RAW -> new RawOutputSOQLExecutor(auth, timeouts, settings, this);
+            case RECORDS -> new RecordsOutputSOQLExecutor(auth, timeouts, settings, this);
+            default -> throw new IllegalStateException(
+                "Type not implementation: " + m_settings.getOutputRepresentation());
+        };
     }
 
     @Override

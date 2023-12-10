@@ -91,6 +91,7 @@ import org.knime.core.node.util.StringHistoryPanel;
 import org.knime.core.node.util.ViewUtils;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.DisplayName;
@@ -113,6 +114,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     private final SalesforceObjectSchemaCache m_cache;
     private boolean m_isCurrentlyLoading;
     private SalesforceAuthentication m_auth;
+    private Timeouts m_timeouts;
 
     private final Map<String, SalesforceField[]> m_preferredSelectedFieldsPerObjectMap;
 
@@ -258,7 +260,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
                 enabled = !areFieldsFailedOrFetching(fields);
             } else {
                 enabled = false;
-                m_cache.executeNewFieldsSwingWorker(m_auth, selected, this::onNewSalesforceObjectSelected);
+                m_cache.executeNewFieldsSwingWorker(m_auth, m_timeouts, selected, this::onNewSalesforceObjectSelected);
                 fields = new Field[] {FETCHING_FIELD};
             }
             m_salesforceFieldFilterPanel.setEnabled(enabled);
@@ -282,6 +284,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
         m_wherePanel.updateHistory();
         SalesforceConnectionPortObjectSpec spec = (SalesforceConnectionPortObjectSpec)specs[0];
         m_auth = spec != null ? spec.getAuthentication().orElse(null) : null;
+        m_timeouts = spec != null ? spec.getTimeouts() : null;
         SalesforceSimpleQueryNodeSettings ssSetting = new SalesforceSimpleQueryNodeSettings().loadInDialog(settings);
 
         m_isCurrentlyLoading = true;
@@ -298,7 +301,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
                 m_preferredSelectedFieldsPerObjectMap.put(selectedObject, selectedFields);
                 m_salesforceFieldFilterPanel.setEnabled(false);
 
-                m_cache.executeNewSObjectsSwingWorker(m_auth, () -> {
+                m_cache.executeNewSObjectsSwingWorker(m_auth, m_timeouts, () -> {
                     model.removeAllElements();
                     Set<SObject> allSObjects = m_cache.getsObjectFieldCache().keySet();
                     allSObjects.stream().filter(SObject::isQueryable).sorted().forEach(model::addElement);
@@ -347,6 +350,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     public void onClose() {
         m_cache.onClose();
         m_auth = null;
+        m_timeouts = null;
         m_preferredSelectedFieldsPerObjectMap.clear();
     }
 

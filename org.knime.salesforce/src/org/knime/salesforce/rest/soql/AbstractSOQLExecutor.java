@@ -64,6 +64,7 @@ import org.knime.core.util.JsonUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
@@ -85,6 +86,7 @@ public abstract class AbstractSOQLExecutor {
     private static final NodeLogger LOGGER = NodeLogger.getLogger(AbstractSOQLExecutor.class);
 
     private final SalesforceAuthentication m_authentication;
+    private final Timeouts m_timeouts;
     private final String m_soql;
 
     /** JSON response from Salesforce starts with...
@@ -102,15 +104,20 @@ public abstract class AbstractSOQLExecutor {
 
     /**
      * @param authentication
+     * @param timeouts
      * @param soql
      */
-    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final String soql) {
+    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+        final String soql) {
         m_authentication = CheckUtils.checkArgumentNotNull(authentication);
+        m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
         m_soql = CheckUtils.checkArgumentNotNull(soql);
     }
 
-    /** Determine the spec of the output table. This is possible prior the query if the output is a single (JSON) column
+    /**
+     * Determine the spec of the output table. This is possible prior the query if the output is a single (JSON) column
      * (which currently is always the case).
+     *
      * @return That spec.
      */
     public abstract Optional<DataTableSpec> createOutputSpec();
@@ -146,7 +153,7 @@ public abstract class AbstractSOQLExecutor {
                 throw new SalesforceResponseException(String.format("Status: %d -- %s", response.getStatus(), error));
             }
             return response.readEntity(String.class);
-        });
+        }, m_timeouts);
 
         JsonStructure jsonStructure;
         try (var reader = new StringReader(body); var jsonReader = JsonUtil.getProvider().createReader(reader)) {
@@ -184,7 +191,7 @@ public abstract class AbstractSOQLExecutor {
                     String.format("Status: %d -- %s", response.getStatus(), ((JsonString)message).getString()));
             }
             return response.readEntity(String.class);
-        });
+        }, m_timeouts);
 
         JsonStructure jsonStructure;
         try (StringReader reader = new StringReader(body);
