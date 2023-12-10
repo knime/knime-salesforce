@@ -80,6 +80,7 @@ import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication.Authe
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.util.FileUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.rest.Timeouts;
 
 import com.github.scribejava.apis.SalesforceApi;
 
@@ -90,9 +91,6 @@ import com.github.scribejava.apis.SalesforceApi;
  */
 final class SalesforceConnectorNodeSettings {
 
-    /**
-     *
-     */
     private static final String NODESETTINGS_KEY = "avi-339vd";
 
     private static final String CFG_KEY_AUTHENTICATION = "authentication";
@@ -169,6 +167,8 @@ final class SalesforceConnectorNodeSettings {
     private String m_passwordSecurityToken;
 
     private AuthType m_authType;
+
+    private Timeouts m_timeouts;
 
     SalesforceConnectorNodeSettings(final UUID nodeInstanceID) {
         m_nodeInstanceID = nodeInstanceID;
@@ -261,6 +261,19 @@ final class SalesforceConnectorNodeSettings {
     }
 
     /**
+     * @return the timeouts
+     */
+    public Timeouts getTimeouts() {
+        return m_timeouts;
+    }
+
+    /**
+     * @param timeouts the timeouts to set
+     */
+    public void setTimeouts(final Timeouts timeouts) {
+        m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
+    }
+    /**
      * Called when dialog is about to close. This also saves the authentication information to the
      * file system (if configured to do so).
      * @param settings to save to
@@ -289,6 +302,7 @@ final class SalesforceConnectorNodeSettings {
         settings.addString(CFG_SALESFORCE_INSTANCE, getSalesforceInstanceType().getLocation());
         settings.addString(CFG_AUTH_TYPE, getAuthType().name());
         settings.addString(CFG_KEY_CREDENTIALS_SAVE_LOCATION, getCredentialsSaveLocation().getActionCommand());
+        m_timeouts.save(settings);
         Optional<SalesforceAuthentication> auth = authStore.get(m_nodeInstanceID);
         m_usernamePasswortAuthenticationModel.saveSettingsTo(settings);
         settings.addPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, m_passwordSecurityToken);
@@ -312,7 +326,7 @@ final class SalesforceConnectorNodeSettings {
             CredentialsLocationType.fromActionCommand(settings.getString(CFG_KEY_CREDENTIALS_SAVE_LOCATION)));
         r.m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
         r.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY);
-
+        r.m_timeouts = Timeouts.read(settings); // non-fail (added in 5.2.1 and other bug fix releases, AP-
         if (r.m_authType == AuthType.Interactive) {
             SalesforceAuthentication auth = r.loadAuthentication(settings, getDialogToNodeExchangeInstance());
             if (!validateOnly) {
@@ -365,6 +379,8 @@ final class SalesforceConnectorNodeSettings {
             getDialogToNodeExchangeInstance().put(nodeInstanceID, auth);
         } catch (InvalidSettingsException ex) {
         }
+
+        result.m_timeouts = Timeouts.read(settings); // added in 5.2.1 (and other)
         return result;
     }
 

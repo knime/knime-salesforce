@@ -100,6 +100,18 @@
 				</p>
 			</option>
 		</tab>
+		<tab name="Connection Settings">
+			<option name="Connection timeout (seconds)">
+				<p>
+					The http connection timeout used in this node and also downstream nodes when connecting to the salesforce instance.  
+				</p>
+			</option>
+			<option name="Read timeout (seconds)">
+				<p>
+					The http read timeout used in this node and also downstream nodes when connecting to the salesforce instance.  
+				</p>
+			</option>
+		</tab>
 	</fullDescription>
 	<ports>
 		<outPort index="0" name="Salesforce Authentication">
