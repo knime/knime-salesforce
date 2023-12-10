@@ -99,6 +99,7 @@ import org.knime.core.node.workflow.VariableType.IntType;
 import org.knime.core.node.workflow.VariableType.StringType;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation;
@@ -110,6 +111,7 @@ import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresenta
 final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
     private SalesforceAuthentication m_auth;
+    private Timeouts m_timeouts;
 
     private final JComboBox<SObject> m_sObjectsCombo;
     private final JList<Field> m_fieldList;
@@ -284,9 +286,10 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         sObjectsComboModel.removeAllElements();
         SalesforceConnectionPortObjectSpec authSpec = (SalesforceConnectionPortObjectSpec)specs[0];
         if (authSpec != null && (m_auth = authSpec.getAuthentication().orElse(null)) != null) {
+            m_timeouts = authSpec.getTimeouts();
             sObjectsComboModel.addElement(FETCHING_CONTENT);
             fieldModel.addElement(FETCHING_FIELD);
-            m_cache.executeNewSObjectsSwingWorker(m_auth, () -> {
+            m_cache.executeNewSObjectsSwingWorker(m_auth, m_timeouts, () -> {
                 DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
                 comboBoxModel.removeAllElements();
                 Set<SObject> sObjects = m_cache.getsObjectFieldCache().keySet();
@@ -296,6 +299,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
             });
         } else {
             m_auth = null;
+            m_timeouts = null;
             sObjectsComboModel.addElement(NO_AUTH_CONTENT);
         }
         m_sObjectsCombo.setEnabled(false);
@@ -317,13 +321,14 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
                 enabled = !(fields.length == 1 && fields[0] == FAILED_FIELD);
             } else {
                 enabled = false;
-                m_cache.executeNewFieldsSwingWorker(m_auth, selected, s -> onNewSalesforceObjectSelected(s));
+                m_cache.executeNewFieldsSwingWorker(m_auth, m_timeouts, selected,
+                    this::onNewSalesforceObjectSelected);
                 fields = new Field[] {FETCHING_FIELD};
             }
             m_fieldList.setEnabled(enabled);
             DefaultListModel<Field> listModel = (DefaultListModel<Field>)m_fieldList.getModel();
             listModel.removeAllElements();
-            Arrays.stream(fields).forEach(s -> listModel.addElement(s));
+            Arrays.stream(fields).forEach(listModel::addElement);
         }
     }
 
@@ -331,6 +336,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     public void onClose() {
         m_cache.onClose();
         m_auth = null;
+        m_timeouts = null;
     }
 
 }

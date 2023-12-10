@@ -60,6 +60,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.util.JsonUtil;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
 
 import jakarta.json.JsonObject;
@@ -76,19 +77,21 @@ public class RecordsOutputSOQLExecutor extends RawOutputSOQLExecutor {
 
     /**
      * @param authentication
+     * @param timeouts
      * @param settings
      * @param flowVarProvider
      * @throws InvalidSettingsException
      */
-    public RecordsOutputSOQLExecutor(final SalesforceAuthentication authentication,
+    public RecordsOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
         final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
         throws InvalidSettingsException {
-        super(authentication, settings, flowVarProvider);
+        super(authentication, timeouts, settings, flowVarProvider);
     }
 
     @Override
     public
-        BufferedDataTable execute(final ExecutionContext context) throws SalesforceResponseException, CanceledExecutionException {
+        BufferedDataTable execute(final ExecutionContext context)
+            throws SalesforceResponseException, CanceledExecutionException {
         BufferedDataContainer container = context.createDataContainer(createFixedOutputSpec());
         context.setMessage("Invoking Salesforce REST API");
         JsonStructure nextResults = execute();

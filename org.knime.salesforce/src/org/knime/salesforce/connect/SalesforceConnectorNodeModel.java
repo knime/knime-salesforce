@@ -102,7 +102,7 @@ final class SalesforceConnectorNodeModel extends NodeModel {
             Optional<SalesforceAuthentication> auth =
                     InMemoryAuthenticationStore.getGlobalInstance().get(m_settings.getNodeInstanceID());
             CheckUtils.checkSetting(auth.isPresent(), "Not authenticated (open configuration to do so)");
-            return new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID());
+            return new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID(), m_settings.getTimeouts());
         }
         return null;
     }
@@ -116,10 +116,10 @@ final class SalesforceConnectorNodeModel extends NodeModel {
             m_userNamePasswordAuthentication = SalesforceRESTUtil.authenticateUsingUserAndPassword(
                 m.getUserName(getCredentialsProvider()), m.getPassword(getCredentialsProvider()), m_settings
                     .getPasswordSecurityToken(),
-                m_settings.getSalesforceInstanceType() == InstanceType.TestInstance);
+                m_settings.getSalesforceInstanceType() == InstanceType.TestInstance, m_settings.getTimeouts());
             InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(),
                 m_userNamePasswordAuthentication);
-            spec = new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID());
+            spec = new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID(), m_settings.getTimeouts());
         } else {
             spec = configureInternal();
         }

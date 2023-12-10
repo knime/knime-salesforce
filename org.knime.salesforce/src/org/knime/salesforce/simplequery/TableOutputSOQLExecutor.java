@@ -70,6 +70,7 @@ import org.knime.core.util.JsonUtil;
 import org.knime.core.util.UniqueNameGenerator;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 import org.knime.salesforce.simplequery.SalesforceFieldType.CellCreator;
 import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.DisplayName;
@@ -91,12 +92,12 @@ public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
 
     /**
      * @param authentication
+     * @param timeouts
      * @param settings
-     * @throws InvalidSettingsException
      */
-    public TableOutputSOQLExecutor(final SalesforceAuthentication authentication, final SalesforceSimpleQueryNodeSettings settings)
-        throws InvalidSettingsException {
-        super(authentication, createSOQL(settings));
+    public TableOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+        final SalesforceSimpleQueryNodeSettings settings) {
+        super(authentication, timeouts, createSOQL(settings));
         m_settings = settings;
     }
 

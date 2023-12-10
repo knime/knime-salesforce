@@ -62,6 +62,7 @@ import org.knime.core.node.NodeLogger;
 import org.knime.core.util.SwingWorkerWithContext;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 
@@ -104,23 +105,25 @@ public final class SalesforceObjectSchemaCache {
 
     /**
      * @param auth TODO
+     * @param timeouts TODO
      * @param afterCompletionRunnable TODO
      *
      */
     public void executeNewSObjectsSwingWorker(final SalesforceAuthentication auth,
-        final Runnable afterCompletionRunnable) {
-        m_fetchSObjectsSwingWorker = new FetchSObjectsSwingWorker(auth, afterCompletionRunnable);
+        final Timeouts timeouts, final Runnable afterCompletionRunnable) {
+        m_fetchSObjectsSwingWorker = new FetchSObjectsSwingWorker(auth, timeouts, afterCompletionRunnable);
         m_fetchSObjectsSwingWorker.execute();
     }
 
     /**
      * @param auth TODO
+     * @param timeouts TODO
      * @param afterCompletionConsumer TODO
      *
      */
-    public void executeNewFieldsSwingWorker(final SalesforceAuthentication auth, final SObject sobject,
-        final Consumer<SObject> afterCompletionConsumer) {
-        m_fetchFieldsSwingWorker = new FetchFieldsSwingWorker(auth, sobject, afterCompletionConsumer);
+    public void executeNewFieldsSwingWorker(final SalesforceAuthentication auth, final Timeouts timeouts,
+        final SObject sobject, final Consumer<SObject> afterCompletionConsumer) {
+        m_fetchFieldsSwingWorker = new FetchFieldsSwingWorker(auth, timeouts, sobject, afterCompletionConsumer);
         m_fetchFieldsSwingWorker.execute();
     }
 
@@ -156,10 +159,12 @@ public final class SalesforceObjectSchemaCache {
         private final SalesforceAuthentication m_auth;
         private final SObject m_sObject;
         private final Consumer<SObject> m_afterCompletionConsumer;
+        private final Timeouts m_timeouts;
 
-        FetchFieldsSwingWorker(final SalesforceAuthentication auth, final SObject sObject,
-            final Consumer<SObject> afterCompletionConsumer) {
+        FetchFieldsSwingWorker(final SalesforceAuthentication auth, final Timeouts timeouts,
+            final SObject sObject, final Consumer<SObject> afterCompletionConsumer) {
             m_auth = auth;
+            m_timeouts = timeouts;
             m_sObject = sObject;
             m_afterCompletionConsumer = afterCompletionConsumer;
         }
@@ -167,8 +172,7 @@ public final class SalesforceObjectSchemaCache {
         @Override
         protected Field[] doInBackgroundWithContext() throws Exception {
             Thread.sleep(500);
-            Field[] fields = SalesforceRESTUtil.getSObjectFields(m_sObject, m_auth);
-            return fields;
+            return SalesforceRESTUtil.getSObjectFields(m_sObject, m_auth, m_timeouts);
         }
 
         @Override
@@ -192,17 +196,20 @@ public final class SalesforceObjectSchemaCache {
     private final class FetchSObjectsSwingWorker extends SwingWorkerWithContext<SObject[], Void> {
 
         private final SalesforceAuthentication m_auth;
+        private final Timeouts m_timeouts;
         private final Runnable m_afterCompletionRunnable;
 
-        FetchSObjectsSwingWorker(final SalesforceAuthentication auth, final Runnable afterCompletionRunnable) {
+        FetchSObjectsSwingWorker(final SalesforceAuthentication auth, final Timeouts timeouts,
+            final Runnable afterCompletionRunnable) {
             m_auth = auth;
+            m_timeouts = timeouts;
             m_afterCompletionRunnable = afterCompletionRunnable;
         }
 
         @Override
         protected SObject[] doInBackgroundWithContext() throws Exception {
             Thread.sleep(500);
-            return SalesforceRESTUtil.getSObjects(m_auth);
+            return SalesforceRESTUtil.getSObjects(m_auth, m_timeouts);
         }
 
         @Override

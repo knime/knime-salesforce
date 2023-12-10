@@ -65,6 +65,7 @@ import org.knime.core.node.port.AbstractSimplePortObjectSpec;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.connect.InMemoryAuthenticationStore;
+import org.knime.salesforce.rest.Timeouts;
 
 /**
  * Spec wrapping and identifier to a {@link SalesforceAuthentication}. Keeps only and identifier as the object itself
@@ -76,13 +77,20 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
 
     private UUID m_nodeInstanceID;
 
+    /** Timeouts, added as part of AP-21579. */
+    private Timeouts m_timeouts;
+
     /** Serializer as required by extension point. */
     public static final class Serializer extends
     AbstractSimplePortObjectSpecSerializer<SalesforceConnectionPortObjectSpec> { }
 
-    /** @param nodeInstanceID Non-null identifier. */
-    public SalesforceConnectionPortObjectSpec(final UUID nodeInstanceID) {
+    /**
+     * @param nodeInstanceID Non-null identifier.
+     * @param timeouts read and connection timeouts
+     */
+    public SalesforceConnectionPortObjectSpec(final UUID nodeInstanceID, final Timeouts timeouts) {
         m_nodeInstanceID = CheckUtils.checkArgumentNotNull(nodeInstanceID);
+        m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
     }
 
     /**
@@ -94,12 +102,14 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
     @Override
     protected void save(final ModelContentWO model) {
         model.addString("sourceNodeInstanceID", m_nodeInstanceID.toString());
+        m_timeouts.save(model);
     }
 
     @Override
     protected void load(final ModelContentRO model) throws InvalidSettingsException {
         m_nodeInstanceID = UUID.fromString(checkSettingNotNull(model.getString("sourceNodeInstanceID"),
             "Instance ID can't be null"));
+        m_timeouts = Timeouts.read(model); // added in 5.2.1 (and other), see field comment
     }
 
     /**
@@ -116,6 +126,13 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
     public SalesforceAuthentication getAuthenticationNoNull() throws InvalidSettingsException {
         return InMemoryAuthenticationStore.getGlobalInstance().get(m_nodeInstanceID).orElseThrow(
             () -> new InvalidSettingsException(SalesforceAuthentication.AUTH_NOT_CACHE_ERROR));
+    }
+
+    /**
+     * @return the timeouts configured during construction.
+     */
+    public Timeouts getTimeouts() {
+        return m_timeouts;
     }
 
     @Override
@@ -171,6 +188,21 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
             b.append(SalesforceAuthentication.AUTH_NOT_CACHE_ERROR);
         }
 
+        b.append("<h2>Connection Properties</h2>");
+        b.append("<table>\n");
+        b.append("<tr>");
+        b.append("<th>Key</th>");
+        b.append("<th>Value</th>");
+        b.append("</tr>");
+
+        b.append("<tr class=\"odd\">\n");
+        b.append("<td>Connection Timeout[s]</td><td>").append(m_timeouts.getConnectionTimeoutS()).append("</td>\n");
+        b.append("</tr>\n");
+        b.append("<tr class=\"even\">\n");
+        b.append("<td>Read Timeout[s]</td><td>").append(m_timeouts.getReadTimeoutS()).append("</td>\n");
+        b.append("</tr>\n");
+        b.append("</table>\n");
+
         b.append("</body>\n");
         b.append("</html>\n");
         pane.setText(b.toString());
@@ -186,7 +218,7 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
 
     @Override
     public int hashCode() {
-        return m_nodeInstanceID.hashCode();
+        return Objects.hash(m_nodeInstanceID, m_timeouts);
     }
 
     @Override
@@ -201,7 +233,7 @@ public final class SalesforceConnectionPortObjectSpec extends AbstractSimplePort
             return false;
         }
         SalesforceConnectionPortObjectSpec other = (SalesforceConnectionPortObjectSpec)obj;
-        return Objects.equals(m_nodeInstanceID, other.m_nodeInstanceID);
+        return Objects.equals(m_nodeInstanceID, other.m_nodeInstanceID) && Objects.equals(m_timeouts, other.m_timeouts);
     }
 
 }
