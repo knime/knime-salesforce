@@ -70,6 +70,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
 
     private final AuthControllerPanel m_authControllerPanel;
     private final InstanceTypePanel m_instanceTypePanel;
+    private final TimeoutPanel m_timeoutPanel;
 
     @SuppressWarnings("serial")
     public SalesforceConnectorNodeDialog() {
@@ -98,8 +99,10 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
                 }
             }
         };
+        m_timeoutPanel = new TimeoutPanel();
         addTab("Authentication", m_authControllerPanel);
         addTab("Instance Type", m_instanceTypePanel);
+        addTab("Connection Settings", m_timeoutPanel);
     }
 
 
@@ -107,6 +110,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
     protected void saveSettingsTo(final NodeSettingsWO settings) throws InvalidSettingsException {
         m_authControllerPanel.saveSettingsTo(m_settings);
         m_instanceTypePanel.saveSettingsTo(m_settings);
+        m_timeoutPanel.saveSettingsTo(m_settings);
         try {
             m_settings.saveSettingsInDialog(settings);
         } catch (IOException ex) {
@@ -119,6 +123,7 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
         m_settings = SalesforceConnectorNodeSettings.loadInDialog(settings);
         m_authControllerPanel.loadSettingsFrom(m_settings, getCredentialsProvider());
         m_instanceTypePanel.loadSettingsFrom(m_settings);
+        m_timeoutPanel.loadSettingsFrom(m_settings);
     }
 
     @Override

@@ -75,6 +75,7 @@ import org.knime.core.node.util.CheckUtils;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 
 /**
  * Used by 'Salesforce SOQL' to run the query. The class hierarchy is mostly due to different output type
@@ -86,6 +87,7 @@ public abstract class AbstractSOQLExecutor {
     private static final NodeLogger LOGGER = NodeLogger.getLogger(AbstractSOQLExecutor.class);
 
     private final SalesforceAuthentication m_authentication;
+    private final Timeouts m_timeouts;
     private final String m_soql;
 
     /** JSON response from Salesforce starts with...
@@ -103,15 +105,20 @@ public abstract class AbstractSOQLExecutor {
 
     /**
      * @param authentication
+     * @param timeouts
      * @param soql
      */
-    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final String soql) {
+    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+        final String soql) {
         m_authentication = CheckUtils.checkArgumentNotNull(authentication);
+        m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
         m_soql = CheckUtils.checkArgumentNotNull(soql);
     }
 
-    /** Determine the spec of the output table. This is possible prior the query if the output is a single (JSON) column
+    /**
+     * Determine the spec of the output table. This is possible prior the query if the output is a single (JSON) column
      * (which currently is always the case).
+     *
      * @return That spec.
      */
     public abstract Optional<DataTableSpec> createOutputSpec();
@@ -141,7 +148,7 @@ public abstract class AbstractSOQLExecutor {
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");
         String body;
-        try (var response = SalesforceRESTUtil.doGet(uri, m_authentication, true)) {
+        try (var response = SalesforceRESTUtil.doGet(uri, m_authentication, true, m_timeouts)) {
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 Optional<String> errorOpt = SalesforceRESTUtil.readErrorFromResponseBody(response);
                 String error = errorOpt.orElse(response.getStatusInfo().getReasonPhrase());
@@ -177,7 +184,7 @@ public abstract class AbstractSOQLExecutor {
         }
         URI uri = m_authentication.uriBuilder().path(m_nextRecordsUrlString.get()).build();
         LOGGER.debugWithFormat("Reading next result set (%s)", m_nextRecordsUrlString.get());
-        Response response = SalesforceRESTUtil.doGet(uri, m_authentication, true);
+        Response response = SalesforceRESTUtil.doGet(uri, m_authentication, true, m_timeouts);
         if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
             String errorBody  = response.readEntity(String.class);
             JsonStructure jsonError = SalesforceRESTUtil.readAsJsonStructure(errorBody);

@@ -100,10 +100,6 @@ import com.google.gson.JsonSyntaxException;
  */
 public final class SalesforceRESTUtil {
 
-    static final long CONNECTION_TIMEOUT = 30000;
-
-    static final long RECEIVE_TIMEOUT = 60000;
-
     /**
      * The base path for all API calls. Version 48 was the latest available on production in July '20.
      */
@@ -122,21 +118,27 @@ public final class SalesforceRESTUtil {
     private SalesforceRESTUtil() {
     }
 
-    /** Performs authentication using username, password and security token (can create a new one in the user's account settings on Salesforce.com).
+    /**
+     * Performs authentication using username, password and security token (can create a new one in the user's account
+     * settings on Salesforce.com).
+     *
      * @param user
      * @param password
      * @param securityToken
      * @param isUseSandbox production or test instance?
+     * @param timeouts http connect/read timeouts.
      * @return The authentication object, not null.
      * @throws SalesforceResponseException If that fails.
      */
     public static SalesforceAuthentication authenticateUsingUserAndPassword(final String user, final String password,
-        final String securityToken, final boolean isUseSandbox) throws SalesforceResponseException {
+        final String securityToken, final boolean isUseSandbox, final Timeouts timeouts)
+        throws SalesforceResponseException {
         CheckUtils.checkArgument(StringUtils.isNotEmpty(user), "User must not be empty (or null)");
         CheckUtils.checkArgument(StringUtils.isNotEmpty(password), "Password must not be empty");
         CheckUtils.checkArgumentNotNull(securityToken, "Security token must not be null");
+        CheckUtils.checkArgumentNotNull(timeouts, "Timeout setting must not be null");
         SalesforceApi api = isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance();
-        WebClient client = getClient(UriBuilder.fromUri(api.getAccessTokenEndpoint()).build(), null);
+        WebClient client = getClient(UriBuilder.fromUri(api.getAccessTokenEndpoint()).build(), null, timeouts);
         client.accept(MediaType.APPLICATION_JSON);
         MultivaluedHashMap<String, String> formData = new MultivaluedHashMap<>();
         formData.put("grant_type", Collections.singletonList("password"));
@@ -150,7 +152,8 @@ public final class SalesforceRESTUtil {
                 String errorDescription = null;
                 JsonStructure json = readAsJsonStructure(body);
                 JsonValue errorDescriptionValue = json.getValue("/error_description");
-                errorDescription = errorDescriptionValue != null ? ((JsonString)errorDescriptionValue).getString() : null;
+                errorDescription =
+                    errorDescriptionValue != null ? ((JsonString)errorDescriptionValue).getString() : null;
                 throw new SalesforceResponseException(
                     String.format("Authentication failed (status %d): \"%s\"%s", response.getStatus(), //
                         response.getStatusInfo().getReasonPhrase(), //
@@ -188,13 +191,14 @@ public final class SalesforceRESTUtil {
      * @param auth
      * @param refreshTokenIff if true and the auth object contains refresh token, it will attempt to refresh the access
      *            token (and also save it in auth).
+     * @param timeouts http connect/read timeouts.
      * @return the response
      * @throws SalesforceResponseException
      */
     @SuppressWarnings("resource")
     public static Response doGet(final URI uri, final SalesforceAuthentication auth,
-        final boolean refreshTokenIff) throws SalesforceResponseException {
-        final WebClient client = getClient(uri, auth);
+        final boolean refreshTokenIff, final Timeouts timeouts) throws SalesforceResponseException {
+        final WebClient client = getClient(uri, auth, timeouts);
         client.accept(MediaType.APPLICATION_JSON);
         client.acceptEncoding("deflate");
         Response response = client.get();
@@ -205,7 +209,7 @@ public final class SalesforceRESTUtil {
                 Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
             SalesforceAuthentication newAuth = refreshToken(auth);
             response.close();
-            response = doGet(uri, newAuth, false);
+            response = doGet(uri, newAuth, false, timeouts);
         }
         return response;
     }
@@ -235,14 +239,18 @@ public final class SalesforceRESTUtil {
         }
     }
 
-    /** Get a web client that accesses the given url with the given authentication */
-    private static WebClient getClient(final URI uri, final SalesforceAuthentication auth) {
+    /**
+     * Get a web client that accesses the given url with the given authentication
+     *
+     * @param timeouts connect/read timeout
+     */
+    private static WebClient getClient(final URI uri, final SalesforceAuthentication auth, final Timeouts timeouts) {
         final WebClient client = WebClient.create(uri);
 
         // Set the timeout
         final HTTPConduit httpConduit = WebClient.getConfig(client).getHttpConduit();
-        httpConduit.getClient().setConnectionTimeout(CONNECTION_TIMEOUT);
-        httpConduit.getClient().setReceiveTimeout(RECEIVE_TIMEOUT);
+        httpConduit.getClient().setConnectionTimeout(1000L * timeouts.getConnectionTimeoutS());
+        httpConduit.getClient().setReceiveTimeout(1000L * timeouts.getReadTimeoutS());
 
         // Set the auth token
         if (auth != null) {
@@ -255,14 +263,18 @@ public final class SalesforceRESTUtil {
         return "Bearer " + auth.getAccessToken();
     }
 
-    /** Read objects from Salesforce. Used to populate components in the dialog UI.
+    /**
+     * Read objects from Salesforce. Used to populate components in the dialog UI.
+     *
      * @param auth ...
+     * @param timeouts ...
      * @return ...
      * @throws SalesforceResponseException
      */
-    public static SObject[] getSObjects(final SalesforceAuthentication auth) throws SalesforceResponseException {
+    public static SObject[] getSObjects(final SalesforceAuthentication auth, final Timeouts timeouts)
+        throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECTS_PATH).build();
-        try (Response response = doGet(uri, auth, true)) {
+        try (Response response = doGet(uri, auth, true, timeouts)) {
             return checkResponse(response, SObjects.class).getSobjects();
         }
     }
@@ -270,13 +282,14 @@ public final class SalesforceRESTUtil {
     /** Read objects from Salesforce. Used to populate components in the dialog UI.
      * @param object ...
      * @param auth ...
+     * @param timeouts connect/read timeout
      * @return ...
      * @throws SalesforceResponseException
      */
-    public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth)
-        throws SalesforceResponseException {
+    public static Field[] getSObjectFields(final SObject object, final SalesforceAuthentication auth,
+        final Timeouts timeouts) throws SalesforceResponseException {
         URI uri = auth.uriBuilder().path(SOBJECT_FIELDS_PATH).build(object.getName().toString());
-        try (Response response = doGet(uri, auth, true)) {
+        try (Response response = doGet(uri, auth, true, timeouts)) {
             return checkResponse(response, SObjectDescription.class).getFields();
         }
     }

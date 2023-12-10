@@ -65,6 +65,7 @@ import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
 
 /**
@@ -79,14 +80,15 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
 
     /**
      * @param authentication
+     * @param timeouts
      * @param settings
      * @param flowVarProvider
      * @throws InvalidSettingsException
      */
-    public RawOutputSOQLExecutor(final SalesforceAuthentication authentication,
+    public RawOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
         final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
         throws InvalidSettingsException {
-        super(authentication, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
+        super(authentication, timeouts, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
         m_settings = settings;
     }
 
