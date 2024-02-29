@@ -92,6 +92,9 @@ import jakarta.ws.rs.core.Response.Status.Family;
 import jakarta.ws.rs.core.Response.StatusType;
 import jakarta.ws.rs.core.UriBuilder;
 
+import org.knime.core.util.ThreadLocalHTTPAuthenticator;
+import org.knime.core.util.ThreadLocalHTTPAuthenticator.AuthenticationCloseable;
+
 /**
  * Static methods that use the Salesforce
  * <a href="https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/intro_what_is_rest_api.htm">REST
@@ -147,7 +150,8 @@ public final class SalesforceRESTUtil {
         formData.put("client_secret", Collections.singletonList(SalesforceAuthenticationUtils.CLIENT_SECRET));
         formData.put("username", Collections.singletonList(user));
         formData.put("password", Collections.singletonList(password + securityToken));
-        try (Response response = client.form(new Form(formData))) {
+        try (final AuthenticationCloseable c = ThreadLocalHTTPAuthenticator.suppressAuthenticationPopups();
+            final Response response = client.form(new Form(formData))) {
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 String body = response.readEntity(String.class);
                 String errorDescription = null;
@@ -208,14 +212,14 @@ public final class SalesforceRESTUtil {
         final WebClient client = getClient(uri, auth, timeouts);
         client.accept(MediaType.APPLICATION_JSON);
         client.acceptEncoding("deflate");
-        try (Response response = client.get()) {
+        try (final AuthenticationCloseable c = ThreadLocalHTTPAuthenticator.suppressAuthenticationPopups();
+            final Response response = client.get()) {
             boolean refreshEnabled = refreshTokenIff && auth.getRefreshToken().isPresent();
             if (response.getStatus() == Status.UNAUTHORIZED.getStatusCode() && refreshEnabled) {
                 NodeLogger.getLogger(SalesforceRESTUtil.class).debugWithFormat(
                     "Received %s (%d) -- attempting to refresh the access token and retry",
                     Status.UNAUTHORIZED.name(), Status.UNAUTHORIZED.getStatusCode());
                 SalesforceAuthentication newAuth = refreshToken(auth);
-                response.close();
                 return doGet(uri, newAuth, false, callback, timeouts);
             }
             return callback.apply(response);
