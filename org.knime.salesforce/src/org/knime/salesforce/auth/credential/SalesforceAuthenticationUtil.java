@@ -53,10 +53,9 @@ import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -64,15 +63,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.client.WebClient;
+import org.eclipse.jetty.http.HttpHeader;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.io.Content;
+import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.eclipse.jetty.util.Callback;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.util.DesktopUtil;
@@ -307,7 +307,7 @@ public final class SalesforceAuthenticationUtil {
     }
 
     @SuppressWarnings("resource") // we must not close the servlet output stream
-    private static class OAuthCallbackHandler extends AbstractHandler {
+    private static class OAuthCallbackHandler extends Handler.Abstract {
 
         private final SalesforceAuthenticationFuture m_authFuture;
 
@@ -319,11 +319,10 @@ public final class SalesforceAuthenticationUtil {
         }
 
         @Override
-        public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
-            final HttpServletResponse response) throws IOException, ServletException {
-            if (!OAUTH_LISTENER_PATH.equals(target)) {
-                response.sendError(404);
-                return;
+        public boolean handle(final Request request, final Response response, final Callback callback) throws Exception {
+            if (!OAUTH_LISTENER_PATH.equals(request.getHttpURI().getPath())) {
+                Response.writeError(request, response, callback, HttpStatus.NOT_FOUND_404);
+                return true;
             }
 
             try {
@@ -334,51 +333,68 @@ public final class SalesforceAuthenticationUtil {
                     final var salesforceToken = (SalesforceToken)m_service.getAccessToken(authCode.get());
                     // Set the future result
                     m_authFuture.setResult(salesforceToken);
-                    configureResponse(response, 200, OAUTH_SUCCESS_PAGE);
+                    configureResponse(response, 200, OAUTH_SUCCESS_PAGE, callback);
                 } else {
                     throw new IOException(getErrorFromRequest(request));
                 }
             } catch (final Throwable t) { // NOSONAR
                 m_authFuture.setFailed(t);
-                configureResponse(response, 400, OAUTH_ERROR_PAGE + t.getMessage());
+                configureResponse(response, 400, OAUTH_ERROR_PAGE + t.getMessage(), callback);
             }
-            response.getOutputStream().flush();
+            return true;
         }
 
-        private static void configureResponse(final HttpServletResponse response, final int status,
-            final String message) throws IOException {
-
-            response.setContentType(MediaType.TEXT_HTML);
+        private static void configureResponse(final Response response, final int status, final String message,
+            final Callback callback) throws IOException {
+            response.getHeaders().put(HttpHeader.CONTENT_TYPE, MediaType.TEXT_HTML);
             response.setStatus(status);
-            response.getOutputStream().write(message.getBytes(StandardCharsets.UTF_8));
+            Content.Sink.write(response, true, message, callback);
+
         }
 
         /** Get the auth code from the parameters of a request */
-        private static Optional<String> getAuthCodeFromRequest(final HttpServletRequest request) {
-            return Optional.ofNullable(request.getParameter("code")).map(Strings::emptyToNull);
+        private static Optional<String> getAuthCodeFromRequest(final Request request) {
+            try {
+                return Optional.ofNullable(Request.getParameters(request).get("code").getValue())
+                    .map(Strings::emptyToNull);
+            } catch (Exception ex) {
+                return Optional.empty();
+            }
         }
 
         /** Parses the error from the request parameters (if present) and returns a formated error string */
-        private static String getErrorFromRequest(final HttpServletRequest request) {
+        private static String getErrorFromRequest(final Request request) {
             final var errorMessage = new StringBuilder();
 
             // Error parameter
-            var errorParamValues = request.getParameterValues("error");
+            List<String> errorParamValues;
+            try {
+                errorParamValues = Request.getParameters(request).getValues("error");
+            } catch (Exception ex) {
+                errorParamValues = null;
+                LOGGER.warn("Could not extract errors from request.", ex);
+            }
             if (errorParamValues != null) {
-                if (errorParamValues.length > 1) {
-                    errorMessage.append("Errors: ").append(Arrays.toString(errorParamValues));
-                } else if (errorParamValues.length == 1) {
-                    errorMessage.append("Error: ").append(errorParamValues[0]);
+                if (errorParamValues.size() > 1) {
+                    errorMessage.append("Errors: ").append(errorParamValues);
+                } else if (errorParamValues.size() == 1) {
+                    errorMessage.append("Error: ").append(errorParamValues.get(0));
                 }
             }
 
             // Error description parameter
-            var errorDescParamValues = request.getParameterValues("error_description");
+            List<String> errorDescParamValues;
+            try {
+                errorDescParamValues = Request.getParameters(request).getValues("error_description");
+            } catch (Exception ex) {
+                errorDescParamValues = null;
+                LOGGER.warn("Could not extract error descriptions from request.", ex);
+            }
             if (errorDescParamValues != null) {
-                if (errorDescParamValues.length > 1) {
-                    errorMessage.append("\nError descriptions: ").append(Arrays.toString(errorDescParamValues));
-                } else if (errorDescParamValues.length == 1) {
-                    errorMessage.append("\nError description: ").append(errorDescParamValues[0]);
+                if (errorDescParamValues.size() > 1) {
+                    errorMessage.append("\nError descriptions: ").append(errorDescParamValues);
+                } else if (errorDescParamValues.size() == 1) {
+                    errorMessage.append("\nError description: ").append(errorDescParamValues.get(0));
                 }
             }
 
