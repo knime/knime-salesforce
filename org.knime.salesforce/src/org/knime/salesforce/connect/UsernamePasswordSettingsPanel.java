@@ -67,12 +67,14 @@ import org.knime.core.node.workflow.CredentialsProvider;
 
 /**
  * Panel to enter username and password credentials.
+ *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 @SuppressWarnings("serial")
 final class UsernamePasswordSettingsPanel extends JPanel {
 
-    private final DialogComponentAuthentication m_dialogComponentAuthentication;
+    private final DialogComponentAuthentication m_dialogComponentAuthentication; // NOSONAR
+
     private final JPasswordField m_securityTokenField;
 
     UsernamePasswordSettingsPanel() {
@@ -81,7 +83,7 @@ final class UsernamePasswordSettingsPanel extends JPanel {
             new SettingsModelAuthentication(SalesforceConnectorNodeSettings.CFG_USERNAME_PASSWORD,
                 AuthenticationType.USER_PWD),
             null, AuthenticationType.CREDENTIALS, AuthenticationType.USER_PWD);
-        JPanel northPanel = new JPanel(new GridLayout(0, 1));
+        final var northPanel = new JPanel(new GridLayout(0, 1));
         northPanel.add(m_dialogComponentAuthentication.getComponentPanel());
         m_securityTokenField = new JPasswordField(30);
         northPanel.add(ViewUtils.getInFlowLayout(new JLabel("Security Token:  "), m_securityTokenField));
@@ -89,7 +91,7 @@ final class UsernamePasswordSettingsPanel extends JPanel {
     }
 
     void saveSettingsTo(final SalesforceConnectorNodeSettings settings) throws InvalidSettingsException {
-        NodeSettings temp = new NodeSettings("temp");
+        final var temp = new NodeSettings("temp");
         m_dialogComponentAuthentication.saveSettingsTo(temp);
         settings.getUsernamePasswortAuthenticationModel().loadSettingsFrom(temp);
         settings.setPasswordSecurityToken(new String(m_securityTokenField.getPassword()));
@@ -98,12 +100,11 @@ final class UsernamePasswordSettingsPanel extends JPanel {
     void loadSettingsFrom(final SalesforceConnectorNodeSettings settings,
         final CredentialsProvider credentialsProvider) {
         SettingsModelAuthentication m = settings.getUsernamePasswortAuthenticationModel();
-        NodeSettings temp = new NodeSettings("temp");
+        final var temp = new NodeSettings("temp");
         m.saveSettingsTo(temp);
         try {
             m_dialogComponentAuthentication.loadSettingsFrom(temp, new PortObjectSpec[] {}, credentialsProvider);
-        } catch (NotConfigurableException ex) {
-            // ignore, let the dialog open
+        } catch (NotConfigurableException ex) { // NOSONAR ignore, let the dialog open
         }
         m_securityTokenField.setText(settings.getPasswordSecurityToken());
     }

@@ -89,9 +89,8 @@ import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.StringHistoryPanel;
 import org.knime.core.node.util.ViewUtils;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
-import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.DisplayName;
@@ -113,8 +112,8 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
 
     private final SalesforceObjectSchemaCache m_cache;
     private boolean m_isCurrentlyLoading;
-    private SalesforceAuthentication m_auth;
-    private Timeouts m_timeouts;
+
+    private SalesforceConnectionPortObjectSpec m_portSpec;
 
     private final Map<String, SalesforceField[]> m_preferredSelectedFieldsPerObjectMap;
 
@@ -260,7 +259,11 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
                 enabled = !areFieldsFailedOrFetching(fields);
             } else {
                 enabled = false;
-                m_cache.executeNewFieldsSwingWorker(m_auth, m_timeouts, selected, this::onNewSalesforceObjectSelected);
+                if (m_portSpec != null && m_portSpec.isPresent()) {
+                    final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+                    m_cache.executeNewFieldsSwingWorker(cred, m_portSpec.getTimeouts(), selected,
+                        this::onNewSalesforceObjectSelected);
+                }
                 fields = new Field[] {FETCHING_FIELD};
             }
             m_salesforceFieldFilterPanel.setEnabled(enabled);
@@ -282,9 +285,8 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     @Override
     protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs) {
         m_wherePanel.updateHistory();
-        SalesforceConnectionPortObjectSpec spec = (SalesforceConnectionPortObjectSpec)specs[0];
-        m_auth = spec != null ? spec.getAuthentication().orElse(null) : null;
-        m_timeouts = spec != null ? spec.getTimeouts() : null;
+        m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
+
         SalesforceSimpleQueryNodeSettings ssSetting = new SalesforceSimpleQueryNodeSettings().loadInDialog(settings);
 
         m_isCurrentlyLoading = true;
@@ -294,14 +296,15 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
             String selectedObject = ssSetting.getObjectName();
             SalesforceField[] selectedFields = ssSetting.getObjectFields();
 
-            if (m_auth != null) {
+            if (m_portSpec != null && m_portSpec.isPresent()) {
                 model.addElement(FETCHING_CONTENT);
                 m_objectCombo.setEnabled(false);
 
                 m_preferredSelectedFieldsPerObjectMap.put(selectedObject, selectedFields);
                 m_salesforceFieldFilterPanel.setEnabled(false);
 
-                m_cache.executeNewSObjectsSwingWorker(m_auth, m_timeouts, () -> {
+                final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+                m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
                     model.removeAllElements();
                     Set<SObject> allSObjects = m_cache.getsObjectFieldCache().keySet();
                     allSObjects.stream().filter(SObject::isQueryable).sorted().forEach(model::addElement);
@@ -349,8 +352,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     @Override
     public void onClose() {
         m_cache.onClose();
-        m_auth = null;
-        m_timeouts = null;
+        m_portSpec = null;
         m_preferredSelectedFieldsPerObjectMap.clear();
     }
 

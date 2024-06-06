@@ -49,18 +49,11 @@
 package org.knime.salesforce.connect;
 
 import static org.knime.core.node.util.CheckUtils.checkSettingNotNull;
-import static org.knime.salesforce.connect.InMemoryAuthenticationStore.getDialogToNodeExchangeInstance;
-import static org.knime.salesforce.connect.InMemoryAuthenticationStore.getGlobalInstance;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -68,7 +61,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
 import org.knime.core.node.InvalidSettingsException;
@@ -79,7 +71,6 @@ import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication;
 import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication.AuthenticationType;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.util.FileUtil;
-import org.knime.salesforce.auth.SalesforceAuthentication;
 import org.knime.salesforce.rest.Timeouts;
 
 import com.github.scribejava.apis.SalesforceApi;
@@ -91,23 +82,18 @@ import com.github.scribejava.apis.SalesforceApi;
  */
 final class SalesforceConnectorNodeSettings {
 
+    private static final int DEFAULT_TIMEOUT_SECONDS = 60;
+
     private static final String NODESETTINGS_KEY = "avi-339vd";
 
-    private static final String CFG_KEY_AUTHENTICATION = "authentication";
-
-    private static final String CFG_KEY_FILESYSTEM_LOCATION = "filesystem_location";
-
-    private static final String CFG_KEY_CREDENTIALS_SAVE_LOCATION = "credentials_save_location";
-
-    private static final String CFG_AUTH_TYPE = "auth_type";
-
-    static final String CFG_USERNAME_PASSWORD = "username-password";
-
-    private static final String CFG_PASSWORD_SECURITY_TOKEN = "password_security_token";
-
     private static final String CFG_SALESFORCE_INSTANCE = "salesforce_instance";
-
+    private static final String CFG_AUTH_TYPE = "auth_type";
     private static final String CFG_KEY_NODE_INSTANCE_ID = "node_instance_id";
+    private static final String CFG_KEY_CREDENTIALS_SAVE_LOCATION = "credentials_save_location";
+    private static final String CFG_KEY_FILESYSTEM_LOCATION = "filesystem_location";
+    static final String CFG_USERNAME_PASSWORD = "username-password";
+    private static final String CFG_PASSWORD_SECURITY_TOKEN = "password_security_token";
+    private static final String CFG_KEY_AUTHENTICATION = "authentication";
 
     private static final String SALESFORCE_AUTHENTICATION_FILE_HEADER = "KNIME Salesforce Authentication";
 
@@ -154,9 +140,11 @@ final class SalesforceConnectorNodeSettings {
 
     }
 
-    private final UUID m_nodeInstanceID;
+    private UUID m_nodeInstanceID;
 
     private InstanceType m_salesforceInstanceType = InstanceType.ProductionInstance;
+
+    private AuthType m_authType = AuthType.Interactive;
 
     private CredentialsLocationType m_credentialsSaveLocation = CredentialsLocationType.MEMORY;
 
@@ -166,9 +154,13 @@ final class SalesforceConnectorNodeSettings {
 
     private String m_passwordSecurityToken;
 
-    private AuthType m_authType;
+    private Timeouts m_timeouts = new Timeouts(DEFAULT_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS);
 
-    private Timeouts m_timeouts;
+    /**
+     * This field holds the results of SalesforceAuthentication.save(...), when the user
+     * has chosen "Node settings" as the location where to save the access token.
+     */
+    private NodeSettings m_savedAuthenticationSettings;
 
     SalesforceConnectorNodeSettings(final UUID nodeInstanceID) {
         m_nodeInstanceID = nodeInstanceID;
@@ -273,45 +265,42 @@ final class SalesforceConnectorNodeSettings {
     public void setTimeouts(final Timeouts timeouts) {
         m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
     }
+
     /**
      * Called when dialog is about to close. This also saves the authentication information to the
      * file system (if configured to do so).
      * @param settings to save to
-     * @throws IOException If {@link CredentialsLocationType#FILESYSTEM} and the credentials can't be saved to file.
      * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
      *             be resolved.
      */
-    void saveSettingsInDialog(final NodeSettingsWO settings) throws IOException, InvalidSettingsException {
-        Optional<SalesforceAuthentication> auth = saveSettingsTo(settings, getDialogToNodeExchangeInstance());
-        if (auth.isPresent() && getCredentialsSaveLocation() == CredentialsLocationType.FILESYSTEM) {
-            String fsLocation = getFilesystemLocation();
-            CheckUtils.checkSetting(StringUtils.isNotEmpty(fsLocation), "File system location must not be empty");
-            File credentialsFile = resolveFilesystemLocation(fsLocation).orElseThrow(IllegalStateException::new);
-            saveCredentialsToFile(credentialsFile, auth.get());
+    void saveSettingsInDialog(final NodeSettingsWO settings) throws InvalidSettingsException {
+        if (getCredentialsSaveLocation() == CredentialsLocationType.FILESYSTEM) {
+            CheckUtils.checkSetting(StringUtils.isNotEmpty(getFilesystemLocation()),
+                "File system location must not be empty");
         }
-
+        saveSettingsTo(settings);
     }
 
     void saveSettingsInModel(final NodeSettingsWO settings) {
-        saveSettingsTo(settings, getGlobalInstance());
+        saveSettingsTo(settings);
     }
 
-    private Optional<SalesforceAuthentication> saveSettingsTo(
-        final NodeSettingsWO settings, final InMemoryAuthenticationStore authStore) {
+    private void saveSettingsTo(final NodeSettingsWO settings) {
         settings.addString(CFG_KEY_NODE_INSTANCE_ID, m_nodeInstanceID.toString());
         settings.addString(CFG_SALESFORCE_INSTANCE, getSalesforceInstanceType().getLocation());
         settings.addString(CFG_AUTH_TYPE, getAuthType().name());
         settings.addString(CFG_KEY_CREDENTIALS_SAVE_LOCATION, getCredentialsSaveLocation().getActionCommand());
-        m_timeouts.save(settings);
-        Optional<SalesforceAuthentication> auth = authStore.get(m_nodeInstanceID);
+        settings.addString(CFG_KEY_FILESYSTEM_LOCATION, m_filesystemLocation);
         m_usernamePasswortAuthenticationModel.saveSettingsTo(settings);
         settings.addPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, m_passwordSecurityToken);
-        saveAuthentication(settings, auth.orElse(null));
-        return auth;
+        m_timeouts.save(settings);
+        if (m_savedAuthenticationSettings != null) {
+            settings.addNodeSettings(m_savedAuthenticationSettings);
+        }
     }
 
-    static SalesforceConnectorNodeSettings loadInModel(final NodeSettingsRO settings, final boolean validateOnly)
-        throws InvalidSettingsException {
+    static SalesforceConnectorNodeSettings loadInModel(final NodeSettingsRO settings) throws InvalidSettingsException {
+
         UUID nodeInstanceID;
         try {
             nodeInstanceID = UUID.fromString(CheckUtils.checkSettingNotNull(
@@ -319,69 +308,59 @@ final class SalesforceConnectorNodeSettings {
         } catch (IllegalArgumentException ex) {
             throw new InvalidSettingsException("Instance ID can't be read as UUID", ex);
         }
-        SalesforceConnectorNodeSettings r = new SalesforceConnectorNodeSettings(nodeInstanceID);
-        r.m_salesforceInstanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
-        r.m_authType = AuthType.loadFrom(settings.getString(CFG_AUTH_TYPE));
-        r.setCredentialsSaveLocation(
+
+        final var toReturn = new SalesforceConnectorNodeSettings(nodeInstanceID);
+        toReturn.m_salesforceInstanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
+        toReturn.m_authType = AuthType.loadFrom(settings.getString(CFG_AUTH_TYPE));
+        toReturn.setCredentialsSaveLocation(
             CredentialsLocationType.fromActionCommand(settings.getString(CFG_KEY_CREDENTIALS_SAVE_LOCATION)));
-        r.m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
-        r.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY);
-        r.m_timeouts = Timeouts.read(settings); // non-fail (added in 5.2.1 and other bug fix releases, AP-
-        if (r.m_authType == AuthType.Interactive) {
-            SalesforceAuthentication auth = r.loadAuthentication(settings, getDialogToNodeExchangeInstance());
-            if (!validateOnly) {
-                getGlobalInstance().put(nodeInstanceID, auth);
-            }
+        toReturn.m_filesystemLocation = settings.getString(CFG_KEY_FILESYSTEM_LOCATION, "");
+        toReturn.m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
+        toReturn.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY);
+        toReturn.m_timeouts = Timeouts.read(settings); // non-fail (added in 5.2.1 and other bug fix releases, AP-
+
+        if (settings.containsKey(CFG_KEY_AUTHENTICATION)) {
+            toReturn.m_savedAuthenticationSettings = new NodeSettings(CFG_KEY_AUTHENTICATION);
+            settings.getNodeSettings(CFG_KEY_AUTHENTICATION).copyTo(toReturn.m_savedAuthenticationSettings);
         }
-        return r;
+
+        return toReturn;
     }
 
-    static SalesforceConnectorNodeSettings loadInDialog(final NodeSettingsRO settings) {
-        UUID nodeInstanceID;
+    void loadInDialog(final NodeSettingsRO settings) {
         try {
-            nodeInstanceID = UUID.fromString(settings.getString(CFG_KEY_NODE_INSTANCE_ID));
+            m_nodeInstanceID = UUID.fromString(settings.getString(CFG_KEY_NODE_INSTANCE_ID));
         } catch (IllegalArgumentException | InvalidSettingsException | NullPointerException ex) {
-            nodeInstanceID = UUID.randomUUID();
+            m_nodeInstanceID = UUID.randomUUID();
         }
-        SalesforceConnectorNodeSettings result = new SalesforceConnectorNodeSettings(nodeInstanceID);
-        InstanceType instanceType;
-        try {
-            instanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
-        } catch (InvalidSettingsException ex) {
-            instanceType = InstanceType.ProductionInstance;
-        }
-        result.m_salesforceInstanceType = instanceType;
-        AuthType authType;
-        try {
-            authType = AuthType.loadFrom(settings.getString(CFG_AUTH_TYPE));
-        } catch (InvalidSettingsException e) {
-            authType = AuthType.Interactive;
-        }
-        result.setAuthType(authType);
 
-        result.setFilesystemLocation(settings.getString(CFG_KEY_FILESYSTEM_LOCATION, ""));
-        result.setCredentialsSaveLocation(CredentialsLocationType.fromActionCommand(
-            settings.getString(CFG_KEY_CREDENTIALS_SAVE_LOCATION, CredentialsLocationType.MEMORY.name())));
         try {
-            result.m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
+            m_salesforceInstanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
+        } catch (InvalidSettingsException ex) {
+            m_salesforceInstanceType = InstanceType.ProductionInstance;
+        }
+
+        try {
+            m_authType = AuthType.loadFrom(settings.getString(CFG_AUTH_TYPE));
+        } catch (InvalidSettingsException ex) {
+            m_authType =  AuthType.Interactive;
+        }
+
+        m_credentialsSaveLocation = CredentialsLocationType.fromActionCommand(
+            settings.getString(CFG_KEY_CREDENTIALS_SAVE_LOCATION, CredentialsLocationType.MEMORY.name()));
+        m_filesystemLocation = settings.getString(CFG_KEY_FILESYSTEM_LOCATION, "");
+
+        try {
+            m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
         } catch (InvalidSettingsException ex1) {
             // ignore, use defaults
         }
         try {
-            result.m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, "");
-        } catch (RuntimeException e) {
+            m_passwordSecurityToken = settings.getPassword(CFG_PASSWORD_SECURITY_TOKEN, NODESETTINGS_KEY, "");
+        } catch (RuntimeException e) { // NOSONAR
             // might occur when loading workflows saved with a future version of KNIME (different cipher; 4.4 -> 4.5)
         }
-
-        try {
-            SalesforceAuthentication auth =
-                result.loadAuthentication(settings, getGlobalInstance());
-            getDialogToNodeExchangeInstance().put(nodeInstanceID, auth);
-        } catch (InvalidSettingsException ex) {
-        }
-
-        result.m_timeouts = Timeouts.read(settings); // added in 5.2.1 (and other)
-        return result;
+        m_timeouts = Timeouts.read(settings); // added in 5.2.1 (and other)
     }
 
     /**
@@ -393,29 +372,37 @@ final class SalesforceConnectorNodeSettings {
      * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
      *             be resolved.
      */
-    void clearAuthentication(final CredentialsLocationType locationType) throws InvalidSettingsException {
+    void clearAuthentication(final CredentialsLocationType locationType) throws IOException {
         switch (locationType) {
             case FILESYSTEM:
-                String fsLocation = getFilesystemLocation();
-                File credFile = resolveFilesystemLocation(fsLocation).orElse(null);
-                if (credFile != null && credFile.isFile()) {
-                    // To make sure not to delete something on accident, only delete if the file has the magic header.
-                    try {
-                        readCredentialsFromFile(credFile);
-                    } catch (InvalidSettingsException ex) {
-                        throw new InvalidSettingsException("File \"" + credFile + "\" was not created "
-                            + "by KNIME Salesforce integration - will not delete it (do it manually)", ex);
-                    }
-                    FileUtils.deleteQuietly(credFile);
-                }
+                deleteFileSystemLocation();
                 break;
             case MEMORY:
+                InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().remove(m_nodeInstanceID);
+                break;
             case NODE:
+                m_savedAuthenticationSettings = null;
                 break;
             default:
                 throw new NotImplementedException("Case " + locationType + " not yet implemented.");
         }
-        getDialogToNodeExchangeInstance().remove(m_nodeInstanceID);
+    }
+
+    private void deleteFileSystemLocation() throws IOException {
+        if (StringUtils.isBlank(m_filesystemLocation)) {
+            return;
+        }
+
+        final var localFile = resolveToLocalPath(m_filesystemLocation);
+        if (Files.exists(localFile)) {
+            try {
+                loadAuthenticationFromFile(localFile);
+            } catch (IOException ex) {
+                throw new IOException("File \"" + localFile + "\" was not created "
+                    + "by KNIME Salesforce integration - will not delete it (do it manually)", ex);
+            }
+            Files.delete(localFile);
+        }
     }
 
     /**
@@ -424,55 +411,21 @@ final class SalesforceConnectorNodeSettings {
      * @param settings Setting to save authentication to if {@link CredentialsLocationType#FILESYSTEM}.
      * @param auth Authenticaton object
      */
-    private void saveAuthentication(final NodeSettingsWO settings, final SalesforceAuthentication auth) {
+    void saveAuthentication(final SalesforceAuthentication auth) throws IOException {
         switch (m_credentialsSaveLocation) {
             case MEMORY:
+                InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().put(m_nodeInstanceID, auth);
                 break;
             case FILESYSTEM:
-                settings.addString(CFG_KEY_FILESYSTEM_LOCATION, getFilesystemLocation());
+                saveCredentialsToFile(resolveToLocalPath(m_filesystemLocation), auth);
                 break;
             case NODE:
-                if (auth != null) {
-                    auth.save(settings.addNodeSettings(CFG_KEY_AUTHENTICATION));
-                }
+                m_savedAuthenticationSettings = new NodeSettings(CFG_KEY_AUTHENTICATION);
+                auth.save(m_savedAuthenticationSettings);
                 break;
             default:
                 throw new NotImplementedException("Case " + m_credentialsSaveLocation + " not implemented.");
         }
-    }
-
-    /**
-     * Load the authentication from the selected credentials location.
-     *
-     * @param settings Setting to load authentication from if {@link CredentialsLocationType#FILESYSTEM}.
-     * @param authStore
-     * @return
-     * @throws InvalidSettingsException If {@link CredentialsLocationType#FILESYSTEM} and the selected file path can't
-     *             be resolved.
-     */
-    private SalesforceAuthentication loadAuthentication(final NodeSettingsRO settings,
-        final InMemoryAuthenticationStore authStore) throws InvalidSettingsException {
-        SalesforceAuthentication authentication = null;
-        switch (m_credentialsSaveLocation) {
-            case MEMORY:
-                authentication = authStore.get(m_nodeInstanceID).orElse(null);
-                break;
-            case FILESYSTEM:
-                setFilesystemLocation(settings.getString(CFG_KEY_FILESYSTEM_LOCATION));
-                File credentialsFile = resolveFilesystemLocation(getFilesystemLocation()).orElse(null);
-                if (credentialsFile != null && credentialsFile.isFile()) {
-                    authentication = readCredentialsFromFile(credentialsFile);
-                }
-                break;
-            case NODE:
-                if (settings.containsKey(CFG_KEY_AUTHENTICATION)) {
-                    authentication = SalesforceAuthentication.load(settings.getNodeSettings(CFG_KEY_AUTHENTICATION));
-                }
-                break;
-            default:
-                throw new NotImplementedException("Case " + m_credentialsSaveLocation + " not yet implemented.");
-        }
-        return authentication;
     }
 
     /**
@@ -483,16 +436,51 @@ final class SalesforceConnectorNodeSettings {
      * @throws IOException If the file exists and does not conform expected specification. Also see
      *             {@link #checkCredentialFileHeader(File)}. Or file can't be written.
      */
-    private static void saveCredentialsToFile(final File saveLocation, final SalesforceAuthentication auth)
+    private static void saveCredentialsToFile(final Path localFile, final SalesforceAuthentication auth)
         throws IOException {
-        NodeSettings settings = new NodeSettings(SALESFORCE_AUTHENTICATION_FILE_HEADER);
+
+        final var settings = new NodeSettings(SALESFORCE_AUTHENTICATION_FILE_HEADER);
         settings.addInt("version", 20200101); // not used yet
         auth.save(settings.addNodeSettings(CFG_KEY_AUTHENTICATION));
-        try (OutputStream out = new BufferedOutputStream(new FileOutputStream(saveLocation))) {
+
+        try (final var out = Files.newOutputStream(localFile)) {
             settings.saveToXML(out);
         } catch (IOException ioe) {
-            throw new IOException("Can't write Salesforce credentials file to \"" + saveLocation.getAbsolutePath()
-                + "\":" + ioe.getMessage(), ioe);
+            throw new IOException("Can't write Salesforce credentials file to \""
+                + localFile.toAbsolutePath().toString() + "\":" + ioe.getMessage(), ioe);
+        }
+    }
+
+
+    /**
+     * Load the authentication from the selected credentials location.
+     *
+     * @return an optional with a the credentials, if they could be successfully loaded, an empty optional if none have
+     *         been saved beforehand.
+     * @throws IOException if loading the credentials failed for some reason (other than non-existence).
+     */
+    Optional<SalesforceAuthentication> loadAuthentication() throws IOException {
+
+        final var toReturn = switch (m_credentialsSaveLocation) {
+            case MEMORY -> InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().get(m_nodeInstanceID)
+                .orElse(null);
+            case FILESYSTEM -> loadAuthenticationFromFile(resolveToLocalPath(m_filesystemLocation));
+            case NODE -> loadAuthenticationFromNodeSettings();
+            default -> throw new NotImplementedException("Case " + m_credentialsSaveLocation + " not yet implemented.");
+        };
+
+        return Optional.ofNullable(toReturn);
+    }
+
+    private SalesforceAuthentication loadAuthenticationFromNodeSettings() throws IOException {
+        if (m_savedAuthenticationSettings == null || m_savedAuthenticationSettings.getChildCount() == 0) {
+            return null;
+        }
+
+        try {
+            return SalesforceAuthentication.load(m_savedAuthenticationSettings);
+        } catch (InvalidSettingsException ex) {
+            throw new IOException("Unable to read Salesforce credentials from node settings", ex);
         }
     }
 
@@ -501,47 +489,57 @@ final class SalesforceConnectorNodeSettings {
      * @param instanceURL instance URL as read from settings
      * @param loadLocation The file to read from.
      *
-     * @return The read credentials.
+     * @return The read credentials, or null if the file does not exist.
      * @throws IOException If the file exists and does not conform expected specification. Also see
      *             {@link #checkCredentialFileHeader(File)}. Or file can't be read.
      */
-    private static SalesforceAuthentication readCredentialsFromFile(final File loadLocation)
-        throws InvalidSettingsException {
+    private static SalesforceAuthentication loadAuthenticationFromFile(final Path localFile) throws IOException {
+        if (!Files.exists(localFile)) {
+            return null;
+        }
+
+        final var errorPrefix =
+            String.format("Unable to read Salesforce credentials from \"%s\": ", localFile.toAbsolutePath().toString());
+
         NodeSettingsRO settings;
-        try (InputStream in = new BufferedInputStream(new FileInputStream(loadLocation))) {
+        try (final var in = Files.newInputStream(localFile)) {
             settings = NodeSettings.loadFromXML(in);
         } catch (IOException ioe) {
-            throw new InvalidSettingsException("Unable to read Salesforce credentials from \""
-                + loadLocation.getAbsolutePath() + "\": " + ioe.getMessage(), ioe);
+            throw new IOException(errorPrefix + ioe.getMessage(), ioe);
         }
-        CheckUtils.checkSetting(Objects.equals(settings.getKey(), SALESFORCE_AUTHENTICATION_FILE_HEADER),
-            "Unexpected header in credentials file. Expected \"%s\", got \"%s\"", SALESFORCE_AUTHENTICATION_FILE_HEADER,
-            settings.getKey());
-        NodeSettingsRO authenticationSettings = settings.getNodeSettings(CFG_KEY_AUTHENTICATION);
-        return SalesforceAuthentication.load(authenticationSettings);
+
+        if (!Objects.equals(settings.getKey(), SALESFORCE_AUTHENTICATION_FILE_HEADER)
+            || !settings.containsKey(CFG_KEY_AUTHENTICATION)) {
+            throw new IOException(errorPrefix + "Unexpected contents");
+        }
+
+        try {
+            return SalesforceAuthentication.load(settings.getNodeSettings(CFG_KEY_AUTHENTICATION));
+        } catch (InvalidSettingsException ex) {
+            throw new IOException(errorPrefix + "Unexpected contents: " + ex.getMessage(), ex);
+        }
     }
 
     /**
-     * Attempts to resolve the given String to File, also resolving the KNIME protocol.
+     * Attempts to resolve the given String to a local {@link Path}, also resolving the KNIME protocol.
      *
-     * @param filesystemLocation The String to resolve.
-     * @return The file corresponding to the given String.
-     * @throws InvalidSettingsException If the given String can't be resolved.
+     * @param location The String to resolve.
+     * @return the resolved local path (which does not mean that the file exists!)
+     * @throws IOException If the given string is invalid or does not resolve to a local path
      */
-    private static Optional<File> resolveFilesystemLocation(final String filesystemLocation) throws InvalidSettingsException {
-        Path resolvedPath;
-        if (StringUtils.isEmpty(filesystemLocation)) {
-            return Optional.empty();
+    private static Path resolveToLocalPath(final String location) throws IOException {
+        if (StringUtils.isEmpty(location)) {
+            throw new IOException("File system location must not be empty");
         }
         try {
-            resolvedPath = FileUtil.resolveToPath(FileUtil.toURL(filesystemLocation));
+            final var resolvedPath = FileUtil.resolveToPath(FileUtil.toURL(location));
             if (resolvedPath == null) {
-                throw new InvalidSettingsException("Not a valid local file path: '" + filesystemLocation + "'.");
+                throw new IOException(String.format("File system location is not local: %s", location));
+            } else {
+                return resolvedPath;
             }
-        } catch (IOException | URISyntaxException | InvalidPathException e) {
-            throw new InvalidSettingsException("Not a valid local file path: '" + filesystemLocation + "'.", e);
+        } catch (URISyntaxException | InvalidPathException e) {
+            throw new IOException("Not a valid local file path: '" + location + "'.", e);
         }
-        return Optional.of(new File(resolvedPath.toUri()));
     }
-
 }

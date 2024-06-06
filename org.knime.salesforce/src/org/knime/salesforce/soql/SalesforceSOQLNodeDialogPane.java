@@ -97,9 +97,8 @@ import org.knime.core.node.workflow.FlowVariable;
 import org.knime.core.node.workflow.VariableType.DoubleType;
 import org.knime.core.node.workflow.VariableType.IntType;
 import org.knime.core.node.workflow.VariableType.StringType;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
-import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation;
@@ -110,8 +109,7 @@ import org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresenta
  */
 final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
-    private SalesforceAuthentication m_auth;
-    private Timeouts m_timeouts;
+    private SalesforceConnectionPortObjectSpec m_portSpec;
 
     private final JComboBox<SObject> m_sObjectsCombo;
     private final JList<Field> m_fieldList;
@@ -284,12 +282,15 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
         DefaultComboBoxModel<SObject> sObjectsComboModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
         sObjectsComboModel.removeAllElements();
-        SalesforceConnectionPortObjectSpec authSpec = (SalesforceConnectionPortObjectSpec)specs[0];
-        if (authSpec != null && (m_auth = authSpec.getAuthentication().orElse(null)) != null) {
-            m_timeouts = authSpec.getTimeouts();
+        m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
+
+        if (m_portSpec != null && m_portSpec.isPresent()) {
+
             sObjectsComboModel.addElement(FETCHING_CONTENT);
             fieldModel.addElement(FETCHING_FIELD);
-            m_cache.executeNewSObjectsSwingWorker(m_auth, m_timeouts, () -> {
+            final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+
+            m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
                 DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
                 comboBoxModel.removeAllElements();
                 Set<SObject> sObjects = m_cache.getsObjectFieldCache().keySet();
@@ -298,8 +299,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
                 m_sObjectsCombo.setEnabled(success);
             });
         } else {
-            m_auth = null;
-            m_timeouts = null;
+            m_portSpec = null;
             sObjectsComboModel.addElement(NO_AUTH_CONTENT);
         }
         m_sObjectsCombo.setEnabled(false);
@@ -321,8 +321,11 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
                 enabled = !(fields.length == 1 && fields[0] == FAILED_FIELD);
             } else {
                 enabled = false;
-                m_cache.executeNewFieldsSwingWorker(m_auth, m_timeouts, selected,
-                    this::onNewSalesforceObjectSelected);
+                if (m_portSpec != null && m_portSpec.isPresent()) {
+                    final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+                    m_cache.executeNewFieldsSwingWorker(cred, m_portSpec.getTimeouts(), selected,
+                        this::onNewSalesforceObjectSelected);
+                }
                 fields = new Field[] {FETCHING_FIELD};
             }
             m_fieldList.setEnabled(enabled);
@@ -335,8 +338,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     @Override
     public void onClose() {
         m_cache.onClose();
-        m_auth = null;
-        m_timeouts = null;
+        m_portSpec = null;
     }
 
 }

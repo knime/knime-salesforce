@@ -46,19 +46,26 @@
  * History
  *   Oct 9, 2019 (benjamin): created
  */
-package org.knime.salesforce.auth;
+package org.knime.salesforce.connect;
 
+import java.net.URI;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.NodeSettingsRO;
-import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.config.base.ConfigBaseRO;
+import org.knime.core.node.config.base.ConfigBaseWO;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.credentials.base.oauth.api.AccessTokenCredential;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
+import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 
 import com.github.scribejava.apis.SalesforceApi;
 import com.github.scribejava.apis.salesforce.SalesforceToken;
@@ -71,7 +78,7 @@ import jakarta.ws.rs.core.UriBuilder;
  * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
-public final class SalesforceAuthentication {
+final class SalesforceAuthentication {
 
     /** Error message shown when auth object is no longer in memory. */
     public static final String AUTH_NOT_CACHE_ERROR = "No authentication information available. "
@@ -159,18 +166,6 @@ public final class SalesforceAuthentication {
     }
 
     /**
-     * Creates a clone with an updated access token.
-     *
-     * @param accessToken the new access token
-     * @param tokenCreatedWhen when that token was created.
-     * @return Clone with updated information.
-     */
-    public SalesforceAuthentication refreshAccessToken(final String accessToken, final ZonedDateTime tokenCreatedWhen) {
-        return new SalesforceAuthentication(m_instanceURLString, accessToken, tokenCreatedWhen, m_refreshToken,
-            m_refreshTokenCreatedWhen, m_isSandboxInstance);
-    }
-
-    /**
      * @return empty builder starting with {@link #getInstanceURLString()}
      */
     public UriBuilder uriBuilder() {
@@ -180,7 +175,7 @@ public final class SalesforceAuthentication {
     /**
      * @param settings To save to.
      */
-    public void save(final NodeSettingsWO settings) {
+    public void save(final ConfigBaseWO settings) {
         settings.addString("instanceURL", m_instanceURLString);
         settings.addPassword("accessTokenCrypt", WEAK_ENCRYPTION_KEY, m_accessToken);
         settings.addString("accessTokenCreatedWhen", toString(m_accessTokenCreatedWhen));
@@ -194,16 +189,16 @@ public final class SalesforceAuthentication {
      * @return ...
      * @throws InvalidSettingsException ...
      */
-    public static SalesforceAuthentication load(final NodeSettingsRO settings) throws InvalidSettingsException {
-        String instanceURLString = settings.getString("instanceURL");
-        String accessToken = settings.getPassword("accessTokenCrypt", WEAK_ENCRYPTION_KEY);
-        String atWhen = settings.getString("accessTokenCreatedWhen");
-        ZonedDateTime accessTokenCreatedWhen = atWhen != null ? fromString(atWhen): null;
-        String refreshToken = settings.getPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY);
-        String rtWhen = settings.getString("refreshTokenCreatedWhen");
-        ZonedDateTime refreshTokenCreatedWhen = rtWhen != null ? fromString(rtWhen) : null;
-        boolean isSandbox = settings.getBoolean("isSandboxInstance");
-        return new SalesforceAuthentication(instanceURLString, accessToken, accessTokenCreatedWhen, refreshToken,
+    public static SalesforceAuthentication load(final ConfigBaseRO settings) throws InvalidSettingsException {
+        final var instanceUrl = settings.getString("instanceURL");
+        final var accessToken = settings.getPassword("accessTokenCrypt", WEAK_ENCRYPTION_KEY);
+        final var atWhen = settings.getString("accessTokenCreatedWhen");
+        final var accessTokenCreatedWhen = atWhen != null ? fromString(atWhen) : null;
+        final var refreshToken = settings.getPassword("refreshTokenCrypt", WEAK_ENCRYPTION_KEY);
+        final var rtWhen = settings.getString("refreshTokenCreatedWhen");
+        final var refreshTokenCreatedWhen = rtWhen != null ? fromString(rtWhen) : null;
+        final var  isSandbox = settings.getBoolean("isSandboxInstance");
+        return new SalesforceAuthentication(instanceUrl, accessToken, accessTokenCreatedWhen, refreshToken,
             refreshTokenCreatedWhen, isSandbox);
     }
 
@@ -262,4 +257,23 @@ public final class SalesforceAuthentication {
             .isEquals();
     }
 
+    private Supplier<AccessTokenCredential> createRefresherIfPossible() {
+        if (m_refreshToken == null) {
+            return null;
+        } else {
+            return () -> SalesforceAuthenticationUtil.refreshToken(m_refreshToken, m_isSandboxInstance);
+        }
+    }
+
+    public SalesforceAccessTokenCredential toCredential() {
+        final var accessToken = new AccessTokenCredential(//
+            m_accessToken,//
+            Instant.now().plus(24, ChronoUnit.HOURS), // this is a wild guess, Salesforce does not provide this info
+            "Bearer",//
+            createRefresherIfPossible());
+
+        return new SalesforceAccessTokenCredential(//
+            URI.create(m_instanceURLString),//
+            accessToken);
+    }
 }

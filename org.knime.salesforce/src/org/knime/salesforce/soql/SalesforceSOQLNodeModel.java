@@ -50,10 +50,8 @@ package org.knime.salesforce.soql;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Optional;
 
 import org.knime.base.util.flowvariable.FlowVariableProvider;
-import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
@@ -65,16 +63,17 @@ import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.credentials.base.NoSuchCredentialException;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
-import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 import org.knime.salesforce.rest.soql.RawOutputSOQLExecutor;
 import org.knime.salesforce.rest.soql.RecordsOutputSOQLExecutor;
 
 /**
  * Model of 'Salesforce SOQL' node.
+ *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceSOQLNodeModel extends NodeModel implements FlowVariableProvider {
@@ -87,28 +86,34 @@ final class SalesforceSOQLNodeModel extends NodeModel implements FlowVariablePro
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
-        final var auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
-        final var timeouts = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getTimeouts();
-        Optional<DataTableSpec> outSpec = createSoqlExecutor(auth, timeouts, m_settings).createOutputSpec();
-        return outSpec.map(s -> new PortObjectSpec[] {s}).orElse(null);
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
+        final var outSpec = createSoqlExecutor(inSpec).createOutputSpec();
+        return outSpec.map(s -> new PortObjectSpec[]{s}).orElse(null);
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inObjects, final ExecutionContext exec) throws Exception {
-        final var auth = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
-        final var timeouts = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getTimeouts();
-        final var executor = createSoqlExecutor(auth, timeouts, m_settings);
-        return new PortObject[] {executor.execute(exec)};
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inObjects[0].getSpec();
+        final var executor = createSoqlExecutor(inSpec);
+        return new PortObject[]{executor.execute(exec)};
     }
 
-    private AbstractSOQLExecutor createSoqlExecutor(final SalesforceAuthentication auth,
-        final Timeouts timeouts, final SalesforceSOQLNodeSettings settings) throws InvalidSettingsException {
-        return switch (m_settings.getOutputRepresentation()) {
-            case RAW -> new RawOutputSOQLExecutor(auth, timeouts, settings, this);
-            case RECORDS -> new RecordsOutputSOQLExecutor(auth, timeouts, settings, this);
-            default -> throw new IllegalStateException(
-                "Type not implementation: " + m_settings.getOutputRepresentation());
-        };
+    private AbstractSOQLExecutor createSoqlExecutor(final SalesforceConnectionPortObjectSpec inSpec)
+        throws InvalidSettingsException {
+
+        try {
+            final var credential = inSpec.resolveCredential(SalesforceAccessTokenCredential.class);
+            final var timeouts = inSpec.getTimeouts();
+
+            return switch (m_settings.getOutputRepresentation()) {
+                case RAW -> new RawOutputSOQLExecutor(credential, timeouts, m_settings, this);
+                case RECORDS -> new RecordsOutputSOQLExecutor(credential, timeouts, m_settings, this);
+                default -> throw new IllegalStateException(
+                    "Type not implementation: " + m_settings.getOutputRepresentation());
+            };
+        } catch (NoSuchCredentialException e) {
+            throw new InvalidSettingsException(e.getMessage(), e);
+        }
     }
 
     @Override

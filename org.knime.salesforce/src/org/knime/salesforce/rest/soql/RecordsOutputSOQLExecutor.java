@@ -58,7 +58,7 @@ import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.util.JsonUtil;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
@@ -76,16 +76,16 @@ public class RecordsOutputSOQLExecutor extends RawOutputSOQLExecutor {
 
 
     /**
-     * @param authentication
+     * @param credential
      * @param timeouts
      * @param settings
      * @param flowVarProvider
      * @throws InvalidSettingsException
      */
-    public RecordsOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+    public RecordsOutputSOQLExecutor(final SalesforceAccessTokenCredential credential, final Timeouts timeouts,
         final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
         throws InvalidSettingsException {
-        super(authentication, timeouts, settings, flowVarProvider);
+        super(credential, timeouts, settings, flowVarProvider);
     }
 
     @Override

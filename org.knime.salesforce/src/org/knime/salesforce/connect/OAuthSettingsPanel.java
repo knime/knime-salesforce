@@ -71,8 +71,7 @@ import javax.swing.JRadioButton;
 
 import org.knime.core.node.defaultnodesettings.DialogComponentFileChooser;
 import org.knime.core.node.defaultnodesettings.SettingsModelString;
-import org.knime.salesforce.auth.InteractiveAuthenticator;
-import org.knime.salesforce.auth.InteractiveAuthenticator.AuthenticatorState;
+import org.knime.salesforce.connect.InteractiveAuthenticator.AuthenticatorState;
 
 /**
  * A default settings panel for OAuth based authentication with a service.
@@ -81,8 +80,6 @@ import org.knime.salesforce.auth.InteractiveAuthenticator.AuthenticatorState;
  * @author Ole Ostergaard, KNIME GmbH, Konstanz, Germany
  * @author David Kolb, KNIME GmbH, Konstanz, Germany
  */
-//TODO: Is this always OAuth or could it be something else?
-//TODO: Move somewhere else where it can be reused
 final class OAuthSettingsPanel extends JPanel {
 
     private static final String STATUS_LABEL_TEXT = "Status: ";
@@ -105,7 +102,7 @@ final class OAuthSettingsPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private final InteractiveAuthenticator<?> m_auth;
+    private final InteractiveAuthenticator<?> m_auth; // NOSONAR
 
     private JLabel m_authStateLabel;
 
@@ -211,10 +208,10 @@ final class OAuthSettingsPanel extends JPanel {
 
         // Authentication in progress: Show the progress bar and cancel button
         // Else: Show the authenticate button
-        showCancelButton(AuthenticatorState.AUTHENTICATION_IN_PROGRESS.equals(state));
+        showCancelButton(state == AuthenticatorState.AUTHENTICATION_IN_PROGRESS);
 
         // If the authentication failed: Show the reason
-        if (AuthenticatorState.FAILED.equals(state)) {
+        if (state == AuthenticatorState.FAILED) {
             showError();
         }
     }
@@ -252,7 +249,7 @@ final class OAuthSettingsPanel extends JPanel {
     private JPanel createAuthButtonPanel() {
         GridBagConstraints gbc = getDefaultGBC(false);
 
-        final JPanel statusLablePanel = new JPanel(new GridBagLayout());
+        final var statusLablePanel = new JPanel(new GridBagLayout());
         gbc.weightx = 0;
         gbc.insets = new Insets(0, 0, 0, 10);
 
@@ -269,7 +266,7 @@ final class OAuthSettingsPanel extends JPanel {
         statusLablePanel.add(new JPanel(), gbc);
         statusLablePanel.setPreferredSize(new Dimension(DEFAULT_COLUMN_WIDTH, DEFAULT_CELL_HEIGHT));
 
-        final JPanel authButtonPanel = new JPanel(new GridBagLayout());
+        final var authButtonPanel = new JPanel(new GridBagLayout());
         gbc = getDefaultGBC(false);
         gbc.weightx = 0.5;
         gbc.insets = new Insets(0, 0, 0, 5);
@@ -286,8 +283,8 @@ final class OAuthSettingsPanel extends JPanel {
     private Frame findParentFrame() {
         Container container = this;
         while (container != null) {
-            if (container instanceof Frame) {
-                return (Frame)container;
+            if (container instanceof Frame containerFrame) {
+                return containerFrame;
             }
             container = container.getParent();
         }
@@ -295,7 +292,7 @@ final class OAuthSettingsPanel extends JPanel {
     }
 
     private JPanel createCredetialsLocationPanel() {
-        JPanel credentialLocationPanel = new JPanel(new GridBagLayout());
+        final var credentialLocationPanel = new JPanel(new GridBagLayout());
         credentialLocationPanel.setBorder(BorderFactory.createTitledBorder("Credentials Storage Location"));
         final GridBagConstraints gbc = getDefaultGBC(true);
 
@@ -334,7 +331,7 @@ final class OAuthSettingsPanel extends JPanel {
     }
 
     private JPanel createFileSystemFileChooserPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
+        final var panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = getDefaultGBC(false);
         gbc.insets = new Insets(10, 10, 10, 10);
         panel.add(m_credentialFileLocation.getComponentPanel(), gbc);
@@ -342,13 +339,13 @@ final class OAuthSettingsPanel extends JPanel {
     }
 
     private JPanel createClearButtonsPanel() {
-        final JPanel clearButtonsPanel = new JPanel(new GridBagLayout());
+        final var clearButtonsPanel = new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = getDefaultGBC(false);
         gbc.weightx = 0.5;
         gbc.insets = new Insets(0, 0, 0, 5);
 
         m_clearSelectedButton = new JButton(CLEAR_SELCETD_BUTTON_TEXT);
-        JPanel clearButtonWrapper = new JPanel(new GridBagLayout());
+        final var clearButtonWrapper = new JPanel(new GridBagLayout());
         clearButtonWrapper.add(m_clearSelectedButton, getDefaultGBC(false));
         clearButtonWrapper.setPreferredSize(new Dimension(DEFAULT_COLUMN_WIDTH, DEFAULT_CELL_HEIGHT));
         clearButtonsPanel.add(clearButtonWrapper, gbc);
@@ -356,7 +353,7 @@ final class OAuthSettingsPanel extends JPanel {
         gbc.insets = new Insets(0, 5, 0, 0);
 
         m_clearAllButton = new JButton(CLEAR_ALL_BUTTON_TEXT);
-        JPanel clearALLButtonWrapper = new JPanel(new GridBagLayout());
+        final var clearALLButtonWrapper = new JPanel(new GridBagLayout());
         clearALLButtonWrapper.add(m_clearAllButton, getDefaultGBC(false));
         clearALLButtonWrapper.setPreferredSize(new Dimension(DEFAULT_COLUMN_WIDTH, DEFAULT_CELL_HEIGHT));
         clearButtonsPanel.add(clearALLButtonWrapper, gbc);
@@ -375,7 +372,7 @@ final class OAuthSettingsPanel extends JPanel {
         String buttonLabel = type.getText();
         String toolTip = type.getToolTip();
 
-        final JRadioButton button = new JRadioButton(buttonLabel);
+        final var button = new JRadioButton(buttonLabel);
         button.setActionCommand(type.getActionCommand());
 
         if (type.getToolTip() != null) {
@@ -387,7 +384,7 @@ final class OAuthSettingsPanel extends JPanel {
     }
 
     private static GridBagConstraints getDefaultGBC(final boolean insets) {
-        GridBagConstraints gbc = new GridBagConstraints();
+        final var gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.LINE_START;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridx = 0;

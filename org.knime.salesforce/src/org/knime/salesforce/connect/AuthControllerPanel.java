@@ -50,7 +50,8 @@ package org.knime.salesforce.connect;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
-import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JLabel;
@@ -60,8 +61,7 @@ import javax.swing.JRadioButton;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.util.ViewUtils;
 import org.knime.core.node.workflow.CredentialsProvider;
-import org.knime.salesforce.auth.SalesforceAuthentication;
-import org.knime.salesforce.auth.SalesforceInteractiveAuthenticator;
+import org.knime.core.util.SwingWorkerWithContext;
 import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.AuthType;
 
 /**
@@ -71,6 +71,8 @@ import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.AuthType;
 @SuppressWarnings("serial")
 abstract class AuthControllerPanel extends JPanel {
 
+    private final SalesforceConnectorNodeSettings m_settings; // NOSONAR
+
     private final JRadioButton m_oauthSelectionButton;
     private final JRadioButton m_userPassSelectionButton;
 
@@ -79,15 +81,21 @@ abstract class AuthControllerPanel extends JPanel {
     private final OAuthSettingsPanel m_oauthPanel;
     private final UsernamePasswordSettingsPanel m_usernamePasswordPanel;
 
-    AuthControllerPanel(final InstanceTypePanel instanceTypePanel) {
+    AuthControllerPanel(final SalesforceConnectorNodeSettings settings,
+        final SalesforceInteractiveAuthenticator authenticator) {
+
         super(new BorderLayout());
-        ButtonGroup bg = new ButtonGroup();
+
+        m_settings = settings;
+        m_authenticator = authenticator;
+
+        final var bg = new ButtonGroup();
         m_oauthSelectionButton = new JRadioButton("OAuth2 Interactive Authentication (via browser)");
         m_oauthSelectionButton.addItemListener(e -> onTypeChange());
         bg.add(m_oauthSelectionButton);
         m_userPassSelectionButton = new JRadioButton("Username + Password Authentication");
         bg.add(m_userPassSelectionButton);
-        JPanel northPanel = new JPanel(new GridLayout(0, 1));
+        final var northPanel = new JPanel(new GridLayout(0, 1));
         northPanel.add(m_oauthSelectionButton);
         northPanel.add(m_userPassSelectionButton);
         northPanel.add(new JLabel(""));
@@ -96,19 +104,21 @@ abstract class AuthControllerPanel extends JPanel {
         add(m_centerPanel, BorderLayout.CENTER);
         add(ViewUtils.getInFlowLayout(new JLabel(" ")), BorderLayout.WEST);
 
-        m_authenticator = new SalesforceInteractiveAuthenticator(() -> instanceTypePanel.isUseSandbox());
         m_oauthPanel = new OAuthSettingsPanel(m_authenticator);
 
         // Listeners to clear stored credentials
         m_oauthPanel.addClearSelectedLocationListener(
-            a -> onClearedInteractiveAuthentication(m_oauthPanel.getCredentialsSaveLocation()));
+            a -> onClearedSelectedAuthentication(m_oauthPanel.getCredentialsSaveLocation()));
         m_oauthPanel.addClearAllLocationListener(a -> onClearedAllAuthentication());
 
         m_usernamePasswordPanel = new UsernamePasswordSettingsPanel();
 
         m_oauthSelectionButton.doClick();
         m_centerPanel.add(m_oauthPanel);
+    }
 
+    SalesforceInteractiveAuthenticator getAuthentication() {
+        return m_authenticator;
     }
 
     void onTypeChange() {
@@ -123,37 +133,53 @@ abstract class AuthControllerPanel extends JPanel {
     abstract void onClearedAllAuthentication();
 
     /** Called on button click. */
-    abstract void onClearedInteractiveAuthentication(CredentialsLocationType locationType);
+    abstract void onClearedSelectedAuthentication(CredentialsLocationType locationType);
 
-    void saveSettingsTo(final SalesforceConnectorNodeSettings settings) throws InvalidSettingsException {
-        settings.setAuthType(m_oauthSelectionButton.isSelected() ? AuthType.Interactive : AuthType.UsernamePassword);
-        SalesforceAuthentication authentication = m_authenticator.getAuthentication();
-        InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().put(settings.getNodeInstanceID(), authentication);
-        UUID nodeInstanceID = settings.getNodeInstanceID();
-        InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().put(nodeInstanceID, authentication);
-        CredentialsLocationType saveLocation = m_oauthPanel.getCredentialsSaveLocation();
-        settings.setCredentialsSaveLocation(saveLocation);
-        settings.setFilesystemLocation(m_oauthPanel.getFilesystemLocation());
-        m_usernamePasswordPanel.saveSettingsTo(settings);
+    void saveSettingsTo() throws InvalidSettingsException {
+        m_settings.setAuthType(m_oauthSelectionButton.isSelected() ? AuthType.Interactive : AuthType.UsernamePassword);
+        final var saveLocation = m_oauthPanel.getCredentialsSaveLocation();
+        m_settings.setCredentialsSaveLocation(saveLocation);
+        m_settings.setFilesystemLocation(m_oauthPanel.getFilesystemLocation());
+        m_usernamePasswordPanel.saveSettingsTo(m_settings);
     }
 
-    void loadSettingsFrom(final SalesforceConnectorNodeSettings settings,
-        final CredentialsProvider credentialsProvider) {
-        if (settings.getAuthType() == AuthType.Interactive) {
+    void loadSettingsFrom(final CredentialsProvider credentialsProvider) {
+
+        if (m_settings.getAuthType() == AuthType.Interactive) {
             m_oauthSelectionButton.doClick();
         } else {
             m_userPassSelectionButton.doClick();
         }
-        m_oauthPanel.setCredentialsSaveLocation(settings.getCredentialsSaveLocation());
-        m_oauthPanel.setFilesystemLocation(settings.getFilesystemLocation());
-        m_usernamePasswordPanel.loadSettingsFrom(settings, credentialsProvider);
+        m_oauthPanel.setCredentialsSaveLocation(m_settings.getCredentialsSaveLocation());
+        m_oauthPanel.setFilesystemLocation(m_settings.getFilesystemLocation());
+        m_usernamePasswordPanel.loadSettingsFrom(m_settings, credentialsProvider);
+
         m_authenticator.setAuthentication(InMemoryAuthenticationStore.getDialogToNodeExchangeInstance()
-            .get(settings.getNodeInstanceID()).orElse(null));
+            .get(m_settings.getNodeInstanceID()).orElse(null));
     }
 
     void onClose() {
         m_authenticator.cancel();
     }
 
+    public void onOpen() {
+        new SwingWorkerWithContext<SalesforceAuthentication, Void>() {
+            @Override
+            protected SalesforceAuthentication doInBackgroundWithContext() throws Exception {
+                return m_settings.loadAuthentication().orElse(null);
+            }
 
+            @Override
+            protected void doneWithContext() {
+                try {
+                    final var auth = get();
+                    if (auth != null) {
+                        m_authenticator.setAuthentication(auth);
+                    }
+                } catch (final InterruptedException | CancellationException | ExecutionException e) { // NOSONAR
+                    // ignoring when opening the node dialog
+                }
+            }
+        }.execute();
+    }
 }

@@ -114,7 +114,7 @@
 		</tab>
 	</fullDescription>
 	<ports>
-		<outPort index="0" name="Salesforce Authentication">
+		<outPort index="0" name="Credential">
 			The authentication including the tokens to access remote resources.
 			Note the token itself is not saved as part of the port content.
 			Especially when choosing the keep the authentication information "In

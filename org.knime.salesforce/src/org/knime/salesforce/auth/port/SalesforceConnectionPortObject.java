@@ -48,43 +48,33 @@
  */
 package org.knime.salesforce.auth.port;
 
-import java.util.Objects;
-
-import javax.swing.JComponent;
-
-import org.knime.core.node.CanceledExecutionException;
-import org.knime.core.node.ExecutionMonitor;
-import org.knime.core.node.InvalidSettingsException;
-import org.knime.core.node.ModelContentRO;
-import org.knime.core.node.ModelContentWO;
-import org.knime.core.node.port.AbstractSimplePortObject;
-import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.port.PortTypeRegistry;
-import org.knime.core.node.util.CheckUtils;
+import org.knime.credentials.base.CredentialPortObject;
 
 /**
- * No op port object. It's empty. All the little magic happens in {@link SalesforceConnectionPortObjectSpec}.
+ * Subclass of {@link CredentialPortObject}, it's only there for the port type.
+ * Since AP 5.3 this class extends {@link CredentialPortObject}.
  *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
+ * @author Bjoern Lohrmann, KNIME GmbH
  */
-public final class SalesforceConnectionPortObject extends AbstractSimplePortObject {
+public final class SalesforceConnectionPortObject extends CredentialPortObject {
 
     /** The type, eh. */
     @SuppressWarnings("hiding")
-    public static final PortType TYPE = PortTypeRegistry.getInstance().getPortType(SalesforceConnectionPortObject.class);
+    public static final PortType TYPE =
+        PortTypeRegistry.getInstance().getPortType(SalesforceConnectionPortObject.class);
 
     /** Serializer as required by ext point definition. */
-    public static final class Serializer extends
-    AbstractSimplePortObjectSerializer<SalesforceConnectionPortObject> { }
-
-    private SalesforceConnectionPortObjectSpec m_spec;
+    public static final class Serializer extends AbstractSimplePortObjectSerializer<SalesforceConnectionPortObject> {
+    }
 
     /** Init object with spec.
      * @param spec Non null spec.
      */
     public SalesforceConnectionPortObject(final SalesforceConnectionPortObjectSpec spec) {
-        m_spec = CheckUtils.checkArgumentNotNull(spec);
+        super(spec);
     }
 
     /**
@@ -94,57 +84,7 @@ public final class SalesforceConnectionPortObject extends AbstractSimplePortObje
     }
 
     @Override
-    public String toString() {
-        return Objects.toString(m_spec, "<No spec set>");
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + Objects.hashCode(m_spec);
-        return result;
-    }
-
-    @Override
-    public boolean equals(final Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (!super.equals(obj)) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        SalesforceConnectionPortObject other = (SalesforceConnectionPortObject)obj;
-        return Objects.equals(m_spec, other.m_spec);
-    }
-
-    @Override
-    public JComponent[] getViews() {
-        return new JComponent[0];
-    }
-
-    @Override
-    public String getSummary() {
-        return m_spec.toString();
-    }
-
-    @Override
     public SalesforceConnectionPortObjectSpec getSpec() {
-        return m_spec;
+        return (SalesforceConnectionPortObjectSpec)super.getSpec();
     }
-
-    @Override
-    protected void save(final ModelContentWO model, final ExecutionMonitor exec) throws CanceledExecutionException {
-        // all done in spec
-    }
-
-    @Override
-    protected void load(final ModelContentRO model, final PortObjectSpec spec, final ExecutionMonitor exec)
-        throws InvalidSettingsException, CanceledExecutionException {
-        m_spec = (SalesforceConnectionPortObjectSpec)spec;
-    }
-
 }

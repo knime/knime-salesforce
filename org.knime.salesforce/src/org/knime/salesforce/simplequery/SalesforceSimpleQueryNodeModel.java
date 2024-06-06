@@ -63,6 +63,8 @@ import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.credentials.base.NoSuchCredentialException;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 
@@ -81,24 +83,33 @@ final class SalesforceSimpleQueryNodeModel extends NodeModel {
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
         CheckUtils.checkSettingNotNull(m_settings, "No configuration set");
-        final var auth = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getAuthenticationNoNull();
-        final var timeouts = ((SalesforceConnectionPortObjectSpec)inSpecs[0]).getTimeouts();
-        return new PortObjectSpec[]{
-            new TableOutputSOQLExecutor(auth, timeouts, m_settings).createOutputSpec().orElse(null)};
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
+        return new PortObjectSpec[]{createSoqlExecutor(inSpec).createOutputSpec().orElse(null)};
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inObjects, final ExecutionContext exec) throws Exception {
-        final var auth = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getAuthenticationNoNull();
-        final var timeouts = ((SalesforceConnectionPortObject)inObjects[0]).getSpec().getTimeouts();
-        final var executor = new TableOutputSOQLExecutor(auth, timeouts, m_settings);
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inObjects[0].getSpec();
+        final var executor = createSoqlExecutor(inSpec);
         final BufferedDataTable table = executor.execute(exec);
         return new PortObject[] {table};
     }
 
+    private TableOutputSOQLExecutor createSoqlExecutor(final SalesforceConnectionPortObjectSpec inSpec)
+        throws InvalidSettingsException {
+
+        try {
+            final var credential = inSpec.resolveCredential(SalesforceAccessTokenCredential.class);
+            final var timeouts = inSpec.getTimeouts();
+            return new TableOutputSOQLExecutor(credential, timeouts, m_settings);
+        } catch (NoSuchCredentialException e) {
+            throw new InvalidSettingsException(e.getMessage(), e);
+        }
+    }
+
     @Override
     protected void reset() {
-
+        // nothing to do here
     }
 
     @Override

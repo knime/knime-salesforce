@@ -65,7 +65,6 @@ import org.knime.salesforce.rest.Timeouts;
  * @author Lars Schweikardt, KNIME GmbH, Konstanz, Germany
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
-// inspired from org.knime.ext.sharepoint.dialog - legacy when switing to WebUI
 final class TimeoutPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;

@@ -49,6 +49,7 @@
 package org.knime.salesforce.connect;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import org.knime.core.data.DataTableSpec;
 import org.knime.core.node.InvalidSettingsException;
@@ -56,9 +57,10 @@ import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.salesforce.connect.InteractiveAuthenticator.AuthenticatorState;
 
 /**
- * Dialog for the Salesforce Connector node.
+ * Salesforce Authentication (deprecated) node dialog.
  *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
@@ -66,7 +68,9 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceConnectorNodeDialog.class);
 
-    private SalesforceConnectorNodeSettings m_settings;
+    private final SalesforceConnectorNodeSettings m_settings;
+
+    private final SalesforceInteractiveAuthenticator m_authenticator;
 
     private final AuthControllerPanel m_authControllerPanel;
     private final InstanceTypePanel m_instanceTypePanel;
@@ -74,14 +78,17 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
 
     @SuppressWarnings("serial")
     public SalesforceConnectorNodeDialog() {
+        m_settings = new SalesforceConnectorNodeSettings(UUID.randomUUID());
+        m_authenticator = new SalesforceInteractiveAuthenticator(m_settings);
+
         m_instanceTypePanel = new InstanceTypePanel();
-        m_authControllerPanel = new AuthControllerPanel(m_instanceTypePanel) {
+        m_authControllerPanel = new AuthControllerPanel(m_settings, m_authenticator) {
             @Override
             void onClearedAllAuthentication() {
                 for (CredentialsLocationType clt : CredentialsLocationType.values()) {
                     try {
                         m_settings.clearAuthentication(clt);
-                    } catch (InvalidSettingsException ex) {
+                    } catch (IOException ex) {
                         String m = "Could not clear " + clt.getShortText() + " credentials. Reason: " + ex.getMessage();
                         LOGGER.error(m, ex);
                     }
@@ -89,10 +96,10 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
             }
 
             @Override
-            void onClearedInteractiveAuthentication(final CredentialsLocationType locationType) {
+            void onClearedSelectedAuthentication(final CredentialsLocationType locationType) {
                 try {
                     m_settings.clearAuthentication(locationType);
-                } catch (InvalidSettingsException ex) {
+                } catch (IOException ex) {
                     String msg =
                         "Could not clear " + locationType.getShortText() + " credentials. Reason: " + ex.getMessage();
                     LOGGER.error(msg, ex);
@@ -103,35 +110,47 @@ final class SalesforceConnectorNodeDialog extends NodeDialogPane {
         addTab("Authentication", m_authControllerPanel);
         addTab("Instance Type", m_instanceTypePanel);
         addTab("Connection Settings", m_timeoutPanel);
+
+        m_authenticator.addListener(this::onAuthenticationTriggered);
     }
 
-
-    @Override
-    protected void saveSettingsTo(final NodeSettingsWO settings) throws InvalidSettingsException {
-        m_authControllerPanel.saveSettingsTo(m_settings);
-        m_instanceTypePanel.saveSettingsTo(m_settings);
-        m_timeoutPanel.saveSettingsTo(m_settings);
-        try {
-            m_settings.saveSettingsInDialog(settings);
-        } catch (IOException ex) {
-            throw new InvalidSettingsException(ex.getMessage(), ex);
+    private void onAuthenticationTriggered(final AuthenticatorState state) {
+        if (state == AuthenticatorState.PREPARE_AUTHENTICATION) {
+            try {
+                m_authControllerPanel.saveSettingsTo();
+                m_instanceTypePanel.saveSettingsTo(m_settings);
+                m_timeoutPanel.saveSettingsTo(m_settings);
+            } catch (InvalidSettingsException ex) { // NOSONAR
+                // can be ignored
+            }
         }
     }
 
     @Override
+    protected void saveSettingsTo(final NodeSettingsWO settings) throws InvalidSettingsException {
+        m_authControllerPanel.saveSettingsTo();
+        m_instanceTypePanel.saveSettingsTo(m_settings);
+        m_timeoutPanel.saveSettingsTo(m_settings);
+
+        m_settings.saveSettingsInDialog(settings);
+    }
+
+    @Override
     protected void loadSettingsFrom(final NodeSettingsRO settings, final DataTableSpec[] specs) {
-        m_settings = SalesforceConnectorNodeSettings.loadInDialog(settings);
-        m_authControllerPanel.loadSettingsFrom(m_settings, getCredentialsProvider());
+        m_settings.loadInDialog(settings);
+
+        m_authControllerPanel.loadSettingsFrom(getCredentialsProvider());
         m_instanceTypePanel.loadSettingsFrom(m_settings);
         m_timeoutPanel.loadSettingsFrom(m_settings);
     }
 
     @Override
     public void onClose() {
-        if (m_settings != null) {
-            InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().remove(m_settings.getNodeInstanceID());
-        }
         m_authControllerPanel.onClose();
     }
 
+    @Override
+    public void onOpen() {
+        m_authControllerPanel.onOpen();
+    }
 }

@@ -61,12 +61,10 @@ import org.knime.core.node.BufferedDataTable;
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.InvalidSettingsException;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.soql.SalesforceSOQLNodeSettings;
-
-import jakarta.json.JsonStructure;
 
 /**
  * Runs the SOQL and returns it in
@@ -79,16 +77,17 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
     private final SalesforceSOQLNodeSettings m_settings;
 
     /**
-     * @param authentication
+     * @param credential
      * @param timeouts
      * @param settings
      * @param flowVarProvider
      * @throws InvalidSettingsException
      */
-    public RawOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+    public RawOutputSOQLExecutor(final SalesforceAccessTokenCredential credential, final Timeouts timeouts,
         final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
         throws InvalidSettingsException {
-        super(authentication, timeouts, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
+
+        super(credential, timeouts, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
         m_settings = settings;
     }
 
@@ -97,17 +96,11 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
         return Optional.of(createFixedOutputSpec());
     }
 
-    /**
-     * @return
-     */
     DataTableSpec createFixedOutputSpec() {
         return new DataTableSpec(
             new DataColumnSpecCreator(m_settings.getOutputColumnName(), JSONCellFactory.TYPE).createSpec());
     }
 
-    /**
-     * @return the settings
-     */
     SalesforceSOQLNodeSettings getSettings() {
         return m_settings;
     }
@@ -115,12 +108,14 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
     @Override
     public BufferedDataTable execute(final ExecutionContext context)
         throws SalesforceResponseException, CanceledExecutionException {
+
         BufferedDataContainer container = context.createDataContainer(createFixedOutputSpec());
         context.setMessage("Invoking Salesforce REST API");
-        JsonStructure nextResults = execute();
-        String sizeAsString = String.format("(%s total records)",
+
+        var nextResults = execute();
+        final var sizeAsString = String.format("(%s total records)",
             getTotalSize().isPresent() ? Integer.toString(getTotalSize().getAsInt()) : "unknown number of ");
-        long chunkIndex = 0L;
+        var chunkIndex = 0L;
         do {
             context.setMessage("Processing result set " + chunkIndex + sizeAsString);
             context.checkCanceled();

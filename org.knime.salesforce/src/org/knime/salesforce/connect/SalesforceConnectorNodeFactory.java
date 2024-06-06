@@ -53,7 +53,7 @@ import org.knime.core.node.NodeFactory;
 import org.knime.core.node.NodeView;
 
 /**
- * Salesforce connector node.
+ * Salesforce Authentication (deprecated) node factory.
  *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */

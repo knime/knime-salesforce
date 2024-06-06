@@ -50,8 +50,6 @@ package org.knime.salesforce.extractor;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.util.Optional;
 
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
@@ -67,8 +65,7 @@ import org.knime.core.node.port.PortType;
 import org.knime.core.node.port.flowvariable.FlowVariablePortObject;
 import org.knime.core.node.port.flowvariable.FlowVariablePortObjectSpec;
 import org.knime.core.node.workflow.VariableType.StringType;
-import org.knime.salesforce.auth.SalesforceAuthentication;
-import org.knime.salesforce.auth.SalesforceAuthenticationUtils;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 
@@ -86,39 +83,34 @@ final class SalesforceAuthExtractNodeModel extends NodeModel {
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
-        SalesforceConnectionPortObjectSpec spec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
-        Optional<SalesforceAuthentication> auth = spec.getAuthentication();
-        if (auth.isPresent()) {
-            extractInfo(auth.get());
-        }
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
+        inSpec.getCredential(SalesforceAccessTokenCredential.class)//
+            .ifPresent(this::pushDummyFlowVariables);
+
         return new PortObjectSpec[] {FlowVariablePortObjectSpec.INSTANCE};
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec) throws Exception {
-        SalesforceConnectionPortObjectSpec spec = ((SalesforceConnectionPortObject)inData[0]).getSpec();
-        SalesforceAuthentication auth = spec.getAuthenticationNoNull();
-        ZonedDateTime accessTokenCreatedWhen = auth.getAccessTokenCreatedWhen();
-        Optional<String> refreshToken = auth.getRefreshToken();
-
-        if (m_refreshTokenOnExecuteModel.getBooleanValue()) {
-            if (refreshToken.isPresent()) {
-                auth = SalesforceAuthenticationUtils.refreshToken(auth);
-                ZonedDateTime accessTokenCreateWhenNew = auth.getAccessTokenCreatedWhen();
-                getLogger().debugWithFormat("Renewed access token; old token created at %s); new one created at %s",
-                    accessTokenCreatedWhen, accessTokenCreateWhenNew);
-            } else {
-                getLogger().debugWithFormat("No refresh token in connection port object -- will return existing "
-                        + "acces token (created %s)", accessTokenCreatedWhen);
-            }
-        }
-        extractInfo(auth);
+        final var inSpec = (SalesforceConnectionPortObjectSpec)inData[0].getSpec();
+        final var credential = inSpec.resolveCredential(SalesforceAccessTokenCredential.class);
+        pushFlowVariables(credential, m_refreshTokenOnExecuteModel.getBooleanValue());
         return new PortObject[] {FlowVariablePortObject.INSTANCE};
     }
 
-    private void extractInfo(final SalesforceAuthentication salesforceAuthentication) {
-        pushFlowVariable("access-token", StringType.INSTANCE, "Bearer " + salesforceAuthentication.getAccessToken());
-        pushFlowVariable("salesforce-instance-url", StringType.INSTANCE, salesforceAuthentication.getInstanceURLString());
+    private void pushDummyFlowVariables(final SalesforceAccessTokenCredential salesforceAccessTokenCredential) {
+        pushFlowVariable("access-token", StringType.INSTANCE, "Bearer dummy-value");
+        pushFlowVariable("salesforce-instance-url", StringType.INSTANCE,
+            salesforceAccessTokenCredential.getSalesforceInstanceUrl().toString());
+    }
+
+    private void pushFlowVariables(final SalesforceAccessTokenCredential salesforceAccessTokenCredential,
+        final boolean forceRefresh) throws IOException {
+
+        pushFlowVariable("access-token", StringType.INSTANCE,
+            "Bearer " + salesforceAccessTokenCredential.getAccessToken(forceRefresh));
+        pushFlowVariable("salesforce-instance-url", StringType.INSTANCE,
+            salesforceAccessTokenCredential.getSalesforceInstanceUrl().toString());
     }
 
     @Override
@@ -156,5 +148,4 @@ final class SalesforceAuthExtractNodeModel extends NodeModel {
     static SettingsModelBoolean createRefreshTokenOnExecuteModel() {
         return new SettingsModelBoolean("refreshTokenOnExecute", true);
     }
-
 }

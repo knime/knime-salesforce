@@ -50,41 +50,50 @@ package org.knime.salesforce.connect;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
+import java.util.UUID;
 
 import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.ExecutionMonitor;
 import org.knime.core.node.InvalidSettingsException;
+import org.knime.core.node.KNIMEException;
 import org.knime.core.node.NodeModel;
 import org.knime.core.node.NodeSettings;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
-import org.knime.core.node.defaultnodesettings.SettingsModelAuthentication;
+import org.knime.core.node.message.Message;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.util.CheckUtils;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.credentials.base.CredentialCache;
+import org.knime.credentials.base.oauth.api.AccessTokenCredential;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
+import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
+import org.knime.salesforce.auth.port.LegacySalesforceConnectionLoader;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.AuthType;
 import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
-import org.knime.salesforce.rest.SalesforceRESTUtil;
+
+import com.github.scribejava.apis.salesforce.SalesforceToken;
 
 /**
- * Salesforce Connector node model.
+ * Salesforce Authentication (deprecated) node model.
  *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 final class SalesforceConnectorNodeModel extends NodeModel {
 
+    private static final String NOT_AUTHENTICATED_MSG = "Not authenticated (open configuration to do so)";
+
     private SalesforceConnectorNodeSettings m_settings;
-    private SalesforceAuthentication m_userNamePasswordAuthentication;
+
+    private UUID m_credentialCacheKey;
 
     SalesforceConnectorNodeModel() {
         super(new PortType[0], new PortType[] {SalesforceConnectionPortObject.TYPE});
@@ -96,47 +105,115 @@ final class SalesforceConnectorNodeModel extends NodeModel {
     }
 
     private SalesforceConnectionPortObjectSpec configureInternal() throws InvalidSettingsException {
+        m_credentialCacheKey = null;
+
         // Check if the user is authenticated
         CheckUtils.checkSettingNotNull(m_settings, "No configuration available");
-        if (m_settings.getAuthType() == AuthType.Interactive) {
-            Optional<SalesforceAuthentication> auth =
-                    InMemoryAuthenticationStore.getGlobalInstance().get(m_settings.getNodeInstanceID());
-            CheckUtils.checkSetting(auth.isPresent(), "Not authenticated (open configuration to do so)");
-            return new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID(), m_settings.getTimeouts());
+
+        final var isInteractiveInMemory = m_settings.getAuthType() == AuthType.Interactive
+                && m_settings.getCredentialsSaveLocation() == CredentialsLocationType.MEMORY;
+
+        if (isInteractiveInMemory) {
+            final var salesforceAuth =
+                InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().get(m_settings.getNodeInstanceID());
+            m_credentialCacheKey = salesforceAuth.map(SalesforceAuthentication::toCredential)//
+                .map(CredentialCache::store).orElse(null);
         }
-        return null;
+
+        final var credSpec = new SalesforceConnectionPortObjectSpec(//
+            m_credentialCacheKey, //
+            m_settings.getTimeouts());
+
+        if (isInteractiveInMemory) {
+            CheckUtils.checkSetting(credSpec.isPresent(), NOT_AUTHENTICATED_MSG);
+        }
+
+        return credSpec;
     }
 
     @Override
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec)
         throws Exception {
-        SalesforceConnectionPortObjectSpec spec;
-        if (m_settings.getAuthType() == AuthType.UsernamePassword) {
-            SettingsModelAuthentication m = m_settings.getUsernamePasswortAuthenticationModel();
-            m_userNamePasswordAuthentication = SalesforceRESTUtil.authenticateUsingUserAndPassword(
-                m.getUserName(getCredentialsProvider()), m.getPassword(getCredentialsProvider()), m_settings
-                    .getPasswordSecurityToken(),
-                m_settings.getSalesforceInstanceType() == InstanceType.TestInstance, m_settings.getTimeouts());
-            InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(),
-                m_userNamePasswordAuthentication);
-            spec = new SalesforceConnectionPortObjectSpec(m_settings.getNodeInstanceID(), m_settings.getTimeouts());
-        } else {
-            spec = configureInternal();
-        }
+
+        final var credential = getCredential();
+        final var cacheId = CredentialCache.store(credential);
+        final var spec = new SalesforceConnectionPortObjectSpec(cacheId, m_settings.getTimeouts());
+
         return new PortObject[] {new SalesforceConnectionPortObject(spec)};
     }
 
 
+    private SalesforceAccessTokenCredential getCredential() throws IOException, KNIMEException {
+        return switch (m_settings.getAuthType()) {
+            case UsernamePassword -> createCredentialWithUsernamePassword();
+            case Interactive -> retrieveInteractiveCredential();
+            default -> throw new IllegalStateException();
+        };
+    }
+
+    private SalesforceAccessTokenCredential retrieveInteractiveCredential() throws IOException, KNIMEException {
+        final var auth = m_settings.loadAuthentication()
+            .orElseThrow(() -> KNIMEException.of(Message.fromSummary(NOT_AUTHENTICATED_MSG)));
+
+        return auth.toCredential();
+    }
+
+    private SalesforceToken fetchSalesforceTokenWithUsernamePassword() throws IOException {
+        final var userPassModel = m_settings.getUsernamePasswortAuthenticationModel();
+
+        final var user = userPassModel.getUserName(getCredentialsProvider());
+        final var password = userPassModel.getPassword(getCredentialsProvider());
+        final var securityToken = m_settings.getPasswordSecurityToken();
+        final var isSandbox = m_settings.getSalesforceInstanceType() == InstanceType.TestInstance;
+
+        return SalesforceAuthenticationUtil.authenticateUsingUserAndPassword(//
+            user, password, securityToken, //
+            isSandbox, //
+            m_settings.getTimeouts());
+    }
+
+    private AccessTokenCredential refreshAccessTokenWithUsernamePassword() {
+        try {
+            final var sfToken = fetchSalesforceTokenWithUsernamePassword();
+
+            return new AccessTokenCredential(//
+                sfToken.getAccessToken(), //
+                null, //
+                sfToken.getTokenType(), //
+                this::refreshAccessTokenWithUsernamePassword);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private AccessTokenCredential toAccessTokenCredential(final SalesforceToken sfToken) {
+        return new AccessTokenCredential(//
+            sfToken.getAccessToken(), //
+            null, //
+            sfToken.getTokenType(), //
+            this::refreshAccessTokenWithUsernamePassword);
+    }
+
+    private SalesforceAccessTokenCredential createCredentialWithUsernamePassword() throws IOException {
+
+        final var sfToken = fetchSalesforceTokenWithUsernamePassword();
+
+        return new SalesforceAccessTokenCredential(//
+            URI.create(sfToken.getInstanceUrl()), //
+            toAccessTokenCredential(sfToken));
+    }
+
     @Override
     protected void reset() {
-        if (m_settings != null && m_settings.getAuthType() == AuthType.UsernamePassword) {
-            removeFromInMemoryCache();
+        if (m_credentialCacheKey != null) {
+            CredentialCache.delete(m_credentialCacheKey);
+            m_credentialCacheKey = null;
         }
     }
 
     @Override
     protected void onDispose() {
-        removeFromInMemoryCache();
+        reset();
     }
 
     @Override
@@ -148,51 +225,83 @@ final class SalesforceConnectorNodeModel extends NodeModel {
 
     @Override
     protected void validateSettings(final NodeSettingsRO settings) throws InvalidSettingsException {
-        SalesforceConnectorNodeSettings.loadInModel(settings, true);
+        SalesforceConnectorNodeSettings.loadInModel(settings);
     }
 
     @Override
     protected void loadValidatedSettingsFrom(final NodeSettingsRO settings) throws InvalidSettingsException {
-        m_settings = SalesforceConnectorNodeSettings.loadInModel(settings, false);
+        m_settings = SalesforceConnectorNodeSettings.loadInModel(settings);
     }
 
     @Override
     protected void loadInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
-        Path p = getInternalsPath(nodeInternDir);
-        if (Files.isRegularFile(p)) {
-            NodeSettingsRO load;
-            try (InputStream in = Files.newInputStream(p)) {
-                load = NodeSettings.loadFromXML(in);
-                m_userNamePasswordAuthentication = SalesforceAuthentication.load(load);
-                InMemoryAuthenticationStore.getGlobalInstance().put(m_settings.getNodeInstanceID(),
-                    m_userNamePasswordAuthentication);
+
+        switch (m_settings.getAuthType()) {
+            case Interactive:
+                tryRestoreInteractiveAuthenticationFromSettings();
+                break;
+            case UsernamePassword:
+                restoreUserPasswordAuthenticationFromNodeInternals(nodeInternDir);
+                break;
+            default:
+                break; // nothing to do
+        }
+    }
+
+    private void restoreUserPasswordAuthenticationFromNodeInternals(final File nodeInternDir) throws IOException {
+
+        final var internalsFile = getInternalsPath(nodeInternDir);
+        // In AP 5.2 and earlier this node saved the credential with the workflow
+        // this restores such a saved credential so that old workflows which were
+        // saved in executed form continue to work
+        if (Files.isRegularFile(internalsFile)) {
+            try (final var in = Files.newInputStream(internalsFile)) {
+
+                // ugly hack to be able to pass the credential to the output port object
+                // of this legacy authenticator node, if it has been saved in executed state
+                final var auth = SalesforceAuthentication.load(NodeSettings.loadFromXML(in));
+                final var fakeSfToken = new SalesforceToken(//
+                    auth.getAccessToken(),//
+                    "Bearer",//
+                    null,//
+                    auth.getRefreshToken().orElse(null),//
+                    null, auth.getInstanceURLString(), "");
+
+                // unfortunately we cannot use SalesforceAuthentication.toCredential() because it cannot
+                // create a refreshable credential (it does not contain username/password)
+                final var restoredCredential = new SalesforceAccessTokenCredential(//
+                    URI.create(auth.getInstanceURLString()),//
+                    toAccessTokenCredential(fakeSfToken));
+
+                LegacySalesforceConnectionLoader.addToLegacyCache(//
+                    m_settings.getNodeInstanceID(), //
+                    restoredCredential);
+
             } catch (InvalidSettingsException ex) {
                 throw new IOException(ex);
             }
+        } else {
+            setWarningMessage("Credential not available anymore. Please re-execute this node.");
+        }
+    }
+
+    private void tryRestoreInteractiveAuthenticationFromSettings() throws IOException {
+        final var auth = m_settings.loadAuthentication();
+        if (auth.isPresent()) {
+            LegacySalesforceConnectionLoader.addToLegacyCache(//
+                m_settings.getNodeInstanceID(), //
+                auth.get().toCredential());
         }
     }
 
     @Override
     protected void saveInternals(final File nodeInternDir, final ExecutionMonitor exec)
         throws IOException, CanceledExecutionException {
-        if (m_userNamePasswordAuthentication != null) {
-            NodeSettings save = new NodeSettings("authentication");
-            m_userNamePasswordAuthentication.save(save);
-            try (OutputStream out = Files.newOutputStream(getInternalsPath(nodeInternDir))) {
-                save.saveToXML(out);
-            }
-        }
+        // not doing anything here
     }
 
     private static Path getInternalsPath(final File nodeInternDir) {
         return nodeInternDir.toPath().resolve("internals.xml");
     }
-
-    private void removeFromInMemoryCache() {
-        if (m_settings != null) {
-            InMemoryAuthenticationStore.getGlobalInstance().remove(m_settings.getNodeInstanceID());
-        }
-    }
-
 }

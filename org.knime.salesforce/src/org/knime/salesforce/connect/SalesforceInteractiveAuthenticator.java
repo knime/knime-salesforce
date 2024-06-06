@@ -46,32 +46,35 @@
  * History
  *   Oct 8, 2019 (benjamin): created
  */
-package org.knime.salesforce.auth;
+package org.knime.salesforce.connect;
 
+import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.function.Supplier;
 
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.SwingWorkerWithContext;
-import org.knime.salesforce.auth.SalesforceAuthenticationUtils.AuthenticationException;
+import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
+import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
+
+import com.github.scribejava.apis.salesforce.SalesforceToken;
 
 /**
- * Microsoft Active Directory authenticator implementation.
+ * {@link InteractiveAuthenticator} implementation for Salesforce.
  *
  * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
  * @author David Kolb, KNIME GmbH, Konstanz, Germany
  */
-// TODO: Make abstract version (or default with generic)
-public class SalesforceInteractiveAuthenticator implements InteractiveAuthenticator<SalesforceAuthentication> {
+class SalesforceInteractiveAuthenticator implements InteractiveAuthenticator<SalesforceAuthentication> {
 
-    private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceAuthentication.class);
+    private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceInteractiveAuthenticator.class);
+
+    private final SalesforceConnectorNodeSettings m_settings;
 
     private final Set<AuthenticatorListener> m_listeners;
-
-    private final Supplier<Boolean> m_useSandboxFlagSupplier;
 
     private SwingWorkerWithContext<SalesforceAuthentication, Void> m_swingWorker;
 
@@ -84,10 +87,10 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
 
     /**
      * Create a new authenticator.
-     * @param useSandboxFlagSupplier
+     * @param settings
      */
-    public SalesforceInteractiveAuthenticator(final Supplier<Boolean> useSandboxFlagSupplier) {
-        m_useSandboxFlagSupplier = useSandboxFlagSupplier;
+    public SalesforceInteractiveAuthenticator(final SalesforceConnectorNodeSettings settings) {
+        m_settings = settings;
         m_listeners = new HashSet<>();
         m_state = AuthenticatorState.NOT_AUTHENTICATED;
         m_auth = null;
@@ -95,43 +98,9 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
 
     @Override
     public void authenticate() {
-        m_swingWorker = new SwingWorkerWithContext<SalesforceAuthentication, Void>() {
-
-            private Future<SalesforceAuthentication> m_futureAuth;
-
-            @Override
-            protected SalesforceAuthentication doInBackgroundWithContext() throws Exception {
-                m_futureAuth = SalesforceAuthenticationUtils.authenticate(m_useSandboxFlagSupplier.get());
-                return m_futureAuth.get();
-            }
-
-            @Override
-            protected void doneWithContext() {
-                try {
-                    if (isCancelled()) {
-                        m_futureAuth.cancel(true);
-                        updateState(AuthenticatorState.CANCELED);
-                        return;
-                    }
-                    // Get the resulting authentication
-                    m_auth = get();
-                    updateState(AuthenticatorState.AUTHENTICATED);
-                } catch (final InterruptedException e) {
-                    final Throwable rootCause = getRootException(e);
-                    LOGGER.warn(rootCause.getMessage(), e);
-                    m_error = "Authentication interrupted.";
-                    updateState(AuthenticatorState.FAILED);
-                } catch (final ExecutionException e) {
-                    final Throwable rootCause = getRootException(e);
-                    LOGGER.warn(rootCause.getMessage(), e);
-                    m_error = rootCause.getMessage();
-                    updateState(AuthenticatorState.FAILED);
-                } finally {
-                    m_swingWorker = null;
-                }
-            }
-        };
+        updateState(AuthenticatorState.PREPARE_AUTHENTICATION);
         m_auth = null;
+        m_swingWorker = new AuthenticationSwingWorker();
         m_swingWorker.execute();
         updateState(AuthenticatorState.AUTHENTICATION_IN_PROGRESS);
     }
@@ -192,14 +161,58 @@ public class SalesforceInteractiveAuthenticator implements InteractiveAuthentica
         }
     }
 
-    /** Return the root cause of the throwable t or the first {@link AuthenticationException}. */
+    /** Return the root cause of the throwable t or the first {@link IOException}. */
     private static Throwable getRootException(final Throwable t) {
         Throwable e = t;
-        while (!(e instanceof AuthenticationException) //
+        while (!(e instanceof IOException) //
             && e.getCause() != null //
             && e.getCause() != e) {
             e = e.getCause();
         }
         return e;
+    }
+
+    private class AuthenticationSwingWorker extends SwingWorkerWithContext<SalesforceAuthentication, Void> {
+
+        private Future<SalesforceToken> m_tokenFuture;
+
+        @Override
+        protected SalesforceAuthentication doInBackgroundWithContext() throws Exception {
+            final var isSandbox = m_settings.getSalesforceInstanceType() == InstanceType.TestInstance;
+            m_tokenFuture = SalesforceAuthenticationUtil.authenticateInteractively(isSandbox);
+
+            final var salesforceToken = m_tokenFuture.get();
+            final var auth =
+                new SalesforceAuthentication(salesforceToken.getInstanceUrl(), salesforceToken.getAccessToken(),
+                    salesforceToken.getRefreshToken(), ZonedDateTime.now(), isSandbox);
+            m_settings.saveAuthentication(auth);
+            return auth;
+        }
+
+        @Override
+        protected void doneWithContext() {
+            try {
+                if (isCancelled()) {
+                    m_tokenFuture.cancel(true);
+                    updateState(AuthenticatorState.CANCELED);
+                    return;
+                }
+                // Get the resulting authentication
+                m_auth = get();
+                updateState(AuthenticatorState.AUTHENTICATED);
+            } catch (final InterruptedException e) { // NOSONAR ignoring
+                final Throwable rootCause = getRootException(e);
+                LOGGER.warn(rootCause.getMessage(), e);
+                m_error = "Authentication interrupted.";
+                updateState(AuthenticatorState.FAILED);
+            } catch (final ExecutionException e) {
+                final Throwable rootCause = getRootException(e);
+                LOGGER.warn(rootCause.getMessage(), e);
+                m_error = rootCause.getMessage();
+                updateState(AuthenticatorState.FAILED);
+            } finally {
+                m_swingWorker = null;
+            }
+        }
     }
 }

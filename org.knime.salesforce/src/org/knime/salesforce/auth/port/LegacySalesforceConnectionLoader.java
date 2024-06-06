@@ -44,90 +44,63 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   11.11.2019 (David Kolb, KNIME GmbH, Konstanz, Germany): created
+ *   Jun 5, 2024 (bjoern): created
  */
-package org.knime.salesforce.connect;
+package org.knime.salesforce.auth.port;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.knime.core.node.NodeLogger;
+import org.knime.core.node.ModelContentRO;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 
 /**
- * Singleton HashMap to store {@link SalesforceAuthentication} objects in memory.
+ * Utility class to transfer credentials restored during loadInternals() of the deprecated
+ * Salesforce Authentication node to the saved port objects. Shouldn't be used for anything else,
+ * especially not by new nodes.
  *
- * @author David Kolb, KNIME GmbH, Konstanz, Germany
- * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
+ * @author Bjoern Lohrmann, KNIME GmbH
  */
-final class InMemoryAuthenticationStore {
+public final class LegacySalesforceConnectionLoader {
 
-    private static final NodeLogger LOGGER = NodeLogger.getLogger(InMemoryAuthenticationStore.class);
+    // lazy init
+    private static Map<UUID, SalesforceAccessTokenCredential> legacyCache;
 
-    private static InMemoryAuthenticationStore globalInstance;
-    private static InMemoryAuthenticationStore dialogToNodeExchangeInstance;
+    private static final String KEY_SOURCE_NODE_INSTANCE_ID = "sourceNodeInstanceID";
 
-    private Map<UUID, SalesforceAuthentication> m_dataStore = Collections.synchronizedMap(new HashMap<>());
-
-    private InMemoryAuthenticationStore() {
+    private LegacySalesforceConnectionLoader() {
     }
 
     /**
-     * @return the m_dialogToNodeExchangeInstance
-     */
-    public static synchronized  InMemoryAuthenticationStore getDialogToNodeExchangeInstance() {
-        if (dialogToNodeExchangeInstance == null) {
-            dialogToNodeExchangeInstance = new InMemoryAuthenticationStore();
-        }
-        return dialogToNodeExchangeInstance;
-    }
-
-    /**
-     * Store the specified auth object under a given key.
+     * Adds the given credential to the legacy credential cache.
      *
-     * @param key The key to use.
-     * @param value the auth object to cache
+     * @param cacheId
+     * @param credential
      */
-    public void put(final UUID key, final SalesforceAuthentication value) {
-        if (value == null) {
-            remove(key);
-        } else if (m_dataStore.put(key, value) == null) {
-            LOGGER.debugWithFormat("Added authentication object with ID %s to %s instance (total count: %d)",
-                key.toString(), getTypeForLogging(), m_dataStore.size());
+    public static synchronized void addToLegacyCache(final UUID cacheId,
+        final SalesforceAccessTokenCredential credential) {
+
+        ensureLegacyCache();
+        legacyCache.put(cacheId, credential);
+    }
+
+    private static synchronized void ensureLegacyCache() {
+        if (legacyCache == null) {
+            legacyCache = new HashMap<>();
         }
     }
 
-    /**
-     * Get the auth object associated with the specified key.
-     *
-     * @param key The key to get the value of.
-     * @return The auth for the specified key
-     */
-    public Optional<SalesforceAuthentication> get(final UUID key) {
-        return Optional.ofNullable(m_dataStore.get(key));
+    static Optional<UUID> restoreLegacyCacheId(final ModelContentRO config) {
+        return Optional.ofNullable(config.getString(KEY_SOURCE_NODE_INSTANCE_ID, null))//
+                .map(UUID::fromString);
     }
 
-    /**
-     * Remove the auth with specified key.
-     *
-     * @param key The key to remove the value of.
-     */
-    public void remove(final UUID key) {
-        if (m_dataStore.remove(key) != null) {
-            LOGGER.debugWithFormat("Removed authentication object with ID %s from %s instance (total count: %d)",
-                key.toString(), getTypeForLogging(), m_dataStore.size());
-        }
-    }
+    static synchronized Optional<SalesforceAccessTokenCredential>
+        tryRestoreCredentialWithLegacyCacheId(final UUID legacyCacheId) {
 
-    private String getTypeForLogging() {
-        if (this == dialogToNodeExchangeInstance) {
-            return "dialog exchange";
-        } else if (this == globalInstance) {
-            return "global";
-        } else {
-            return "unknown";
-        }
+        ensureLegacyCache();
+        return Optional.ofNullable(legacyCache.remove(legacyCacheId));
     }
 }

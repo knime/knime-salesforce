@@ -45,6 +45,16 @@
 			<url>${knime.base.p2}</url>
 		</repository>
 		<repository>
+			<id>p2-knime-credentials-base</id>
+			<layout>p2</layout>
+			<url>${knime.credentials.base.p2}</url>
+		</repository>
+		<repository>
+			<id>p2-knime-gateway</id>
+			<layout>p2</layout>
+			<url>${knime.gateway.p2}</url>
+		</repository>
+		<repository>
 			<id>p2-knime-expressions</id>
 			<layout>p2</layout>
 			<url>${knime.expressions.p2}</url>

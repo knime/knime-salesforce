@@ -41,11 +41,22 @@
          point="org.knime.core.PortType">
       <portType
             hidden="false"
-            name="Salesforce OAuth2 Connection"
+            name="Credential"
+            color="#4386f7"
             objectClass="org.knime.salesforce.auth.port.SalesforceConnectionPortObject"
             objectSerializer="org.knime.salesforce.auth.port.SalesforceConnectionPortObject$Serializer"
             specClass="org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec"
             specSerializer="org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec$Serializer">
       </portType>
    </extension>
+  <extension point="org.knime.credentials.base.CredentialType">
+    <credentialType
+      id="knime.salesforceOAuth2Credential"
+      name="Salesforce"
+      credentialClass="org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential"
+      credentialSerializerClass="org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential$Serializer"
+      secretConsumableParserProvider="org.knime.salesforce.auth.credential.SalesforceAccessTokenCredentialParserProvider">
+    </credentialType>
+  </extension>
+
 </plugin>

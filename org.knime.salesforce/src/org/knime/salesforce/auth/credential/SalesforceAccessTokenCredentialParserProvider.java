@@ -44,64 +44,48 @@
  * ---------------------------------------------------------------------
  *
  * History
- *   Jun 28, 2020 (wiswedel): created
+ *   2024-01-25 (bjoern): created
  */
-package org.knime.salesforce.connect;
+package org.knime.salesforce.auth.credential;
 
-import java.awt.GridLayout;
+import static org.knime.credentials.base.secretstore.ParserUtil.getStringField;
 
-import javax.swing.ButtonGroup;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
+import java.net.URI;
 
-import org.knime.salesforce.connect.SalesforceConnectorNodeSettings.InstanceType;
+import org.knime.credentials.base.oauth.api.AccessTokenCredential;
+import org.knime.credentials.base.secretstore.SecretConsumableParserProvider;
+import org.knime.credentials.base.secretstore.UnparseableSecretConsumableException;
+
+import jakarta.json.JsonObject;
 
 /**
- * Panel with two radio buttons to select the instance type (production vs. sandbox).
+ * {@link SecretConsumableParserProvider} that can parse a secret consumable
+ * (from KNIME Hub Secret Store) into a {@link SalesforceAccessTokenCredential}.
  *
- * @author Bernd Wiswedel, KNIME, Konstanz, Germany
+ * @author Bjoern Lohrmann, KNIME GmbH
+ * @since 5.3.0
  */
-@SuppressWarnings("serial")
-final class InstanceTypePanel extends JPanel {
+public class SalesforceAccessTokenCredentialParserProvider
+        extends SecretConsumableParserProvider<SalesforceAccessTokenCredential> {
 
-    private final JRadioButton m_productionInstanceChecker;
-
-    private final JRadioButton m_testInstanceChecker;
-
-    InstanceTypePanel() {
-        super(new GridLayout(0, 1));
-        final var bg = new ButtonGroup();
-        m_productionInstanceChecker = new JRadioButton("Use Production Instance (login.salesforce.com)");
-        m_testInstanceChecker = new JRadioButton("Use Test Instance (test.salesforce.com)");
-        bg.add(m_productionInstanceChecker);
-        bg.add(m_testInstanceChecker);
-        m_productionInstanceChecker.doClick();
-        add(m_productionInstanceChecker);
-        add(m_testInstanceChecker);
+    /**
+     * Zero-argument default constructor.
+     */
+    public SalesforceAccessTokenCredentialParserProvider() {
+        super("salesforce_oauth2", SalesforceAccessTokenCredentialParserProvider::parse);
     }
 
-    void saveSettingsTo(final SalesforceConnectorNodeSettings settings) {
-        InstanceType instanceType;
-        if (m_productionInstanceChecker.isSelected()) {
-            instanceType = InstanceType.ProductionInstance;
-        } else {
-            instanceType = InstanceType.TestInstance;
-        }
-        settings.setSalesforceInstanceType(instanceType);
-    }
+    private static SalesforceAccessTokenCredential parse(final JsonObject consumable)
+            throws UnparseableSecretConsumableException {
 
-    void loadSettingsFrom(final SalesforceConnectorNodeSettings settings) {
-        final var salesforceInstanceType = settings.getSalesforceInstanceType();
-        if (salesforceInstanceType == InstanceType.ProductionInstance) {
-            m_productionInstanceChecker.doClick();
-        } else {
-            m_testInstanceChecker.doClick();
-        }
-    }
+        final var accessTokenCredential = new AccessTokenCredential(//
+            getStringField(consumable, "accessToken"),//
+            null, // expiry
+            getStringField(consumable, "tokenType"),//
+            null); // the refresher is null for now
 
-    boolean isUseSandbox() {
-        return m_testInstanceChecker.isSelected();
+        return new SalesforceAccessTokenCredential(//
+                URI.create(getStringField(consumable, "salesforceInstanceUrl")), //
+                accessTokenCredential);
     }
-
 }
-

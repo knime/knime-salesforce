@@ -46,7 +46,7 @@
  * History
  *   Oct 8, 2019 (benjamin): created
  */
-package org.knime.salesforce.auth;
+package org.knime.salesforce.connect;
 
 import java.awt.Color;
 import java.util.EventListener;
@@ -59,7 +59,7 @@ import java.util.EventListener;
  * @author David Kolb, KNIME GmbH, Konstanz, Germany
  * @param <T> The type of the authentication object managed by this Authenticator.
  */
-public interface InteractiveAuthenticator<T> {
+interface InteractiveAuthenticator<T> {
 
     /**
      * Start the authentication flow.
@@ -97,7 +97,7 @@ public interface InteractiveAuthenticator<T> {
      * A listener for authentication state changes.
      */
     @FunctionalInterface
-    public interface AuthenticatorListener extends EventListener {
+    interface AuthenticatorListener extends EventListener {
 
         /**
          * React to a authentication state change. The listeners should not do heavy work here.
@@ -117,12 +117,15 @@ public interface InteractiveAuthenticator<T> {
     /**
      * A state of an {@link InteractiveAuthenticator}. Use {@link #toString()} to get a user-friendly description of the state.
      */
-    public enum AuthenticatorState {
+    enum AuthenticatorState {
             /** User is not authenticated */
             NOT_AUTHENTICATED("Not Authenticated", Color.BLACK),
 
             /** User is authenticated */
             AUTHENTICATED("Authenticated", Color.GREEN),
+
+            /** User has triggered authentication, but it has not yet begun */
+            PREPARE_AUTHENTICATION("Preparing authentication...", Color.BLACK),
 
             /** Authentication is currently in progress */
             AUTHENTICATION_IN_PROGRESS("Authenticating...", Color.BLACK),
@@ -137,7 +140,7 @@ public interface InteractiveAuthenticator<T> {
 
         private final Color m_displayColor;
 
-        private AuthenticatorState(final String text, final Color displayColor) {
+        AuthenticatorState(final String text, final Color displayColor) {
             m_text = text;
             m_displayColor = displayColor;
         }

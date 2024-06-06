@@ -67,7 +67,7 @@ import org.knime.core.node.CanceledExecutionException;
 import org.knime.core.node.ExecutionContext;
 import org.knime.core.util.JsonUtil;
 import org.knime.core.util.UniqueNameGenerator;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
@@ -90,13 +90,13 @@ public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
     private final SalesforceSimpleQueryNodeSettings m_settings;
 
     /**
-     * @param authentication
+     * @param cred
      * @param timeouts
      * @param settings
      */
-    public TableOutputSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+    public TableOutputSOQLExecutor(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
         final SalesforceSimpleQueryNodeSettings settings) {
-        super(authentication, timeouts, createSOQL(settings));
+        super(cred, timeouts, createSOQL(settings));
         m_settings = settings;
     }
 

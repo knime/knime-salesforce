@@ -49,7 +49,6 @@
 package org.knime.salesforce.rest.soql;
 
 import java.io.StringReader;
-import java.net.URI;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -61,7 +60,7 @@ import org.knime.core.node.ExecutionContext;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.core.util.JsonUtil;
-import org.knime.salesforce.auth.SalesforceAuthentication;
+import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.SalesforceResponseException;
 import org.knime.salesforce.rest.Timeouts;
@@ -69,23 +68,24 @@ import org.knime.salesforce.rest.Timeouts;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonPointer;
-import jakarta.json.JsonReader;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
 import jakarta.json.JsonValue.ValueType;
 import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.core.UriBuilder;
 
 /**
  * Used by 'Salesforce SOQL' to run the query. The class hierarchy is mostly due to different output type
  * representations (as per {@link org.knime.salesforce.soql.SalesforceSOQLNodeSettings.SOQLOutputRepresentation}).
+ *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
 public abstract class AbstractSOQLExecutor {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(AbstractSOQLExecutor.class);
 
-    private final SalesforceAuthentication m_authentication;
+    private final SalesforceAccessTokenCredential m_credential;
     private final Timeouts m_timeouts;
     private final String m_soql;
 
@@ -103,13 +103,13 @@ public abstract class AbstractSOQLExecutor {
     private Optional<String> m_nextRecordsUrlString = Optional.empty();
 
     /**
-     * @param authentication
+     * @param credential
      * @param timeouts
      * @param soql
      */
-    protected AbstractSOQLExecutor(final SalesforceAuthentication authentication, final Timeouts timeouts,
+    protected AbstractSOQLExecutor(final SalesforceAccessTokenCredential credential, final Timeouts timeouts,
         final String soql) {
-        m_authentication = CheckUtils.checkArgumentNotNull(authentication);
+        m_credential = CheckUtils.checkArgumentNotNull(credential);
         m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
         m_soql = CheckUtils.checkArgumentNotNull(soql);
     }
@@ -138,7 +138,7 @@ public abstract class AbstractSOQLExecutor {
      * @throws SalesforceResponseException if the result set does not comply with the schema etc
      */
     protected JsonStructure execute() throws SalesforceResponseException {
-        var uri = m_authentication.uriBuilder() //
+        var uri = UriBuilder.fromUri(m_credential.getSalesforceInstanceUrl()) //
                 .path(SalesforceRESTUtil.QUERY_PATH) //
                 .queryParam("q", "{soql}") // need to use templates for proper encoding, see AP-17072 and
                 .resolveTemplate("soql", m_soql) // https://issues.apache.org/jira/browse/CXF-8553
@@ -146,7 +146,7 @@ public abstract class AbstractSOQLExecutor {
         var uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");
-        String body = SalesforceRESTUtil.doGet(uri, m_authentication, true, response -> {
+        String body = SalesforceRESTUtil.doGet(uri, m_credential, true, response -> {
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 Optional<String> errorOpt = SalesforceRESTUtil.readErrorFromResponseBody(response);
                 String error = errorOpt.orElse(response.getStatusInfo().getReasonPhrase());
@@ -177,28 +177,31 @@ public abstract class AbstractSOQLExecutor {
      * @return the next piece of data
      * @throws SalesforceResponseException ... */
     public Optional<JsonStructure> readNext() throws SalesforceResponseException {
+
         if (!m_nextRecordsUrlString.isPresent()) {
             return Optional.empty();
         }
-        URI uri = m_authentication.uriBuilder().path(m_nextRecordsUrlString.get()).build();
+
+        final var uri = UriBuilder.fromUri(m_credential.getSalesforceInstanceUrl()) //
+                    .path(m_nextRecordsUrlString.get())//
+                    .build();
+
         LOGGER.debugWithFormat("Reading next result set (%s)", m_nextRecordsUrlString.get());
-        String body = SalesforceRESTUtil.doGet(uri, m_authentication, true, response -> {
+
+        final var body = SalesforceRESTUtil.doGet(uri, m_credential, true, response -> {
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 String errorBody  = response.readEntity(String.class);
-                JsonStructure jsonError = SalesforceRESTUtil.readAsJsonStructure(errorBody);
-                JsonValue message = jsonError.getValue("/0/message");
+                final var jsonError = SalesforceRESTUtil.readAsJsonStructure(errorBody);
+                final var message = jsonError.getValue("/0/message");
                 throw new SalesforceResponseException(
                     String.format("Status: %d -- %s", response.getStatus(), ((JsonString)message).getString()));
             }
             return response.readEntity(String.class);
         }, m_timeouts);
 
-        JsonStructure jsonStructure;
-        try (StringReader reader = new StringReader(body);
-                JsonReader jsonReader = JsonUtil.getProvider().createReader(reader)) {
-            jsonStructure = jsonReader.read();
-        }
+        final var jsonStructure = SalesforceRESTUtil.readAsJsonStructure(body);
         m_nextRecordsUrlString = readNextRecordsUrlString(jsonStructure);
+
         return Optional.of(jsonStructure);
     }
 
@@ -216,8 +219,10 @@ public abstract class AbstractSOQLExecutor {
 
     private static Optional<String> readNextRecordsUrlString(final JsonStructure response)
         throws SalesforceResponseException {
-        String nextRecordsUrlFieldName = "nextRecordsUrl";
-        JsonPointer urlPointer = JsonUtil.getProvider().createPointer("/" + nextRecordsUrlFieldName);
+
+        final var nextRecordsUrlFieldName = "nextRecordsUrl";
+        final var urlPointer = JsonUtil.getProvider().createPointer("/" + nextRecordsUrlFieldName);
+
         if (urlPointer.containsValue(response)) {
             JsonValue value = urlPointer.getValue(response);
             if (value.getValueType() != ValueType.STRING) {
@@ -241,5 +246,4 @@ public abstract class AbstractSOQLExecutor {
         }
         return new JsonStructure[] {response};
     }
-
 }
