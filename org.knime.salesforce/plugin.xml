@@ -26,7 +26,7 @@
       <node
             after="org.knime.salesforce.connect.SalesforceConnectorNodeFactory"
             category-path="/toolintegration/salesforce"
-            deprecated="false"
+            deprecated="true"
             factory-class="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory">
       </node>
       <node
