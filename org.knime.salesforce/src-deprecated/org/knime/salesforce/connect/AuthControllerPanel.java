@@ -77,7 +77,7 @@ abstract class AuthControllerPanel extends JPanel {
     private final JRadioButton m_userPassSelectionButton;
 
     private final JPanel m_centerPanel;
-    private final SalesforceInteractiveAuthenticator m_authenticator;
+    private final SalesforceInteractiveAuthenticator m_authenticator; // NOSONAR
     private final OAuthSettingsPanel m_oauthPanel;
     private final UsernamePasswordSettingsPanel m_usernamePasswordPanel;
 
@@ -99,10 +99,10 @@ abstract class AuthControllerPanel extends JPanel {
         northPanel.add(m_oauthSelectionButton);
         northPanel.add(m_userPassSelectionButton);
         northPanel.add(new JLabel(""));
-        add(northPanel, BorderLayout.NORTH);
+        add(northPanel, BorderLayout.NORTH); // NOSONAR
         m_centerPanel = new JPanel(new BorderLayout());
-        add(m_centerPanel, BorderLayout.CENTER);
-        add(ViewUtils.getInFlowLayout(new JLabel(" ")), BorderLayout.WEST);
+        add(m_centerPanel, BorderLayout.CENTER); // NOSONAR
+        add(ViewUtils.getInFlowLayout(new JLabel(" ")), BorderLayout.WEST);// NOSONAR
 
         m_oauthPanel = new OAuthSettingsPanel(m_authenticator);
 

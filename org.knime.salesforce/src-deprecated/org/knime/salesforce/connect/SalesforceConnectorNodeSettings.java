@@ -101,14 +101,14 @@ final class SalesforceConnectorNodeSettings {
     public enum InstanceType {
 
         /** Corresponds to {@link SalesforceApi#instance()}. */
-        ProductionInstance("login.salesforce.com"),
+        ProductionInstance("login.salesforce.com"), // NOSONAR
         /** Corresponds to {@link SalesforceApi#sandbox()}. */
-        TestInstance("test.salesforce.com");
+        TestInstance("test.salesforce.com"); // NOSONAR
 
         /** The copied static private member in {@link SalesforceApi}. */
         private final String m_location;
 
-        private InstanceType(final String location) {
+        InstanceType(final String location) {
             m_location = location;
         }
 
@@ -125,8 +125,8 @@ final class SalesforceConnectorNodeSettings {
     }
 
     enum AuthType {
-        Interactive,
-        UsernamePassword;
+        Interactive, // NOSONAR
+        UsernamePassword; // NOSONAR
 
         static AuthType loadFrom(final String value) throws InvalidSettingsException {
             checkSettingNotNull(value, "Value for auth type must not be null");
@@ -330,19 +330,19 @@ final class SalesforceConnectorNodeSettings {
     void loadInDialog(final NodeSettingsRO settings) {
         try {
             m_nodeInstanceID = UUID.fromString(settings.getString(CFG_KEY_NODE_INSTANCE_ID));
-        } catch (IllegalArgumentException | InvalidSettingsException | NullPointerException ex) {
+        } catch (IllegalArgumentException | InvalidSettingsException | NullPointerException ex) { // NOSONAR
             m_nodeInstanceID = UUID.randomUUID();
         }
 
         try {
             m_salesforceInstanceType = InstanceType.fromLocation(settings.getString(CFG_SALESFORCE_INSTANCE));
-        } catch (InvalidSettingsException ex) {
+        } catch (InvalidSettingsException ex) { // NOSONAR
             m_salesforceInstanceType = InstanceType.ProductionInstance;
         }
 
         try {
             m_authType = AuthType.loadFrom(settings.getString(CFG_AUTH_TYPE));
-        } catch (InvalidSettingsException ex) {
+        } catch (InvalidSettingsException ex) { // NOSONAR
             m_authType =  AuthType.Interactive;
         }
 
@@ -352,7 +352,7 @@ final class SalesforceConnectorNodeSettings {
 
         try {
             m_usernamePasswortAuthenticationModel.loadSettingsFrom(settings);
-        } catch (InvalidSettingsException ex1) {
+        } catch (InvalidSettingsException ex1) { // NOSONAR
             // ignore, use defaults
         }
         try {

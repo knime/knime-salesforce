@@ -55,7 +55,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
-import java.util.Arrays;
 import java.util.Enumeration;
 
 import javax.swing.AbstractButton;
@@ -455,59 +454,5 @@ final class OAuthSettingsPanel extends JPanel {
                 button.doClick();
             }
         }
-    }
-}
-
-/**
- * Enum giving different credential storage loytion types.
- *
- * @author David Kolb, KNIME GmbH, Konstanz, Germany
- */
-enum CredentialsLocationType {
-        MEMORY("Memory", "Memory (credentials kept in memory)",
-            "The authentication credentials will be kept in memory; they are discarded when exiting KNIME."),
-        NODE("Node", "Node (credentials saved as part of node instance)",
-            "The authentication credentials will be stored in the node settings."),
-        FILESYSTEM("Local File", "Local File (credentials saved in local file)",
-            "The authentication credentials will be stored in the specified file.");
-
-    private String m_toolTip;
-
-    private String m_text;
-
-    private String m_shortText;
-
-    /**
-     * @param shortText Short description.
-     * @param text Label text to display.
-     * @param toolTip Tool tip to display.
-     */
-    private CredentialsLocationType(final String shortText, final String text, final String toolTip) {
-        m_text = text;
-        m_toolTip = toolTip;
-        m_shortText = shortText;
-    }
-
-    public String getText() {
-        return m_text;
-    }
-
-    public String getShortText() {
-        return m_shortText;
-    }
-
-    public String getActionCommand() {
-        return name();
-    }
-
-    public String getToolTip() {
-        return m_toolTip;
-    }
-
-    public static CredentialsLocationType fromActionCommand(final String actionCommand) {
-        return Arrays.stream(CredentialsLocationType.values())//
-            .filter(c -> c.name().equals(actionCommand))//
-            .findFirst()//
-            .orElse(MEMORY);
     }
 }

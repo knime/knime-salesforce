@@ -20,7 +20,7 @@
       <node
             after="org.knime.salesforce.connect2.SalesforceConnector2NodeFactory"
             category-path="/toolintegration/salesforce"
-            deprecated="false"
+            deprecated="true"
             factory-class="org.knime.salesforce.connect.SalesforceConnectorNodeFactory">
       </node>
       <node
