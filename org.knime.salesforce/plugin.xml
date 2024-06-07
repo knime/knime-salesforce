@@ -15,6 +15,12 @@
       <node
             category-path="/toolintegration/salesforce"
             deprecated="false"
+            factory-class="org.knime.salesforce.connect2.SalesforceConnector2NodeFactory">
+      </node>
+      <node
+            after="org.knime.salesforce.connect2.SalesforceConnector2NodeFactory"
+            category-path="/toolintegration/salesforce"
+            deprecated="false"
             factory-class="org.knime.salesforce.connect.SalesforceConnectorNodeFactory">
       </node>
       <node

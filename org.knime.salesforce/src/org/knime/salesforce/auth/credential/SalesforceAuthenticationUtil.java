@@ -85,11 +85,14 @@ import org.knime.salesforce.rest.Timeouts;
 import com.github.scribejava.apis.SalesforceApi;
 import com.github.scribejava.apis.salesforce.SalesforceToken;
 import com.github.scribejava.core.builder.ServiceBuilder;
+import com.github.scribejava.core.oauth.AccessTokenRequestParams;
 import com.github.scribejava.core.oauth.OAuth20Service;
+import com.github.scribejava.core.pkce.PKCE;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractFuture;
 
 import jakarta.json.JsonString;
+import jakarta.json.stream.JsonParsingException;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedHashMap;
@@ -105,12 +108,10 @@ public final class SalesforceAuthenticationUtil {
 
     private static final NodeLogger LOGGER =  NodeLogger.getLogger(SalesforceAuthenticationUtil.class);
 
-    /** The consumer key / API key of the app registration (for KNIME AP) */
-    public static final String CLIENT_ID =
-        "3MVG9LzKxa43zqdJIdD5755PBiXKqt29EVi.z6v_mIZbhn0rXJY62p.rUdyLti3mlMU0XR1CfoMjk4iQwXYlI";
-
-    /** The consumer secret part of the app registration (for KNIME AP) */
-    public static final String CLIENT_SECRET = "678C2BF0272EC1D3E2A6C96AF6315BF14E1C79511728867A8CE7E2449D9BC837";
+    /** The data of the app registration (for KNIME AP) */
+    public static final ClientApp DEFAULT_CLIENTAPP = new ClientApp( //
+        "3MVG9LzKxa43zqdJIdD5755PBiXKqt29EVi.z6v_mIZbhn0rXJY62p.rUdyLti3mlMU0XR1CfoMjk4iQwXYlI", // id
+        "678C2BF0272EC1D3E2A6C96AF6315BF14E1C79511728867A8CE7E2449D9BC837" ); // secret
 
     /** Only one OAuth flow can be in progress at one time. This value tracks if there is one in progress currently. */
     private static final AtomicBoolean OAUTH_IN_PROGRESS = new AtomicBoolean(false);
@@ -142,8 +143,29 @@ public final class SalesforceAuthenticationUtil {
      * @return The {@link SalesforceToken}, not null.
      * @throws IOException if authentication has failed.
      */
-    public static SalesforceToken authenticateUsingUserAndPassword(final String user, final String password, // NOSONAR
+    public static SalesforceToken authenticateUsingUserAndPassword(final String user, final String password,
         final String securityToken, final boolean isUseSandbox, final Timeouts timeouts) throws IOException {
+
+        return authenticateUsingUserAndPassword(user, password, securityToken,
+            isUseSandbox, timeouts, DEFAULT_CLIENTAPP);
+        }
+
+    /**
+     * Performs authentication using username, password and security token (can create a new one in the user's account
+     * settings on Salesforce.com).
+     *
+     * @param user
+     * @param password
+     * @param securityToken
+     * @param isUseSandbox production or test instance?
+     * @param timeouts http connect/read timeouts.
+     * @param clientApp client app id and secret to use
+     * @return The authentication object, not null.
+     * @throws IOException if authentication has failed.
+     */
+    public static SalesforceToken authenticateUsingUserAndPassword(final String user, final String password,  // NOSONAR
+        final String securityToken, final boolean isUseSandbox, final Timeouts timeouts, final ClientApp clientApp)
+        throws IOException {
 
         CheckUtils.checkArgument(StringUtils.isNotEmpty(user), "User must not be empty (or null)");
         CheckUtils.checkArgument(StringUtils.isNotEmpty(password), "Password must not be empty");
@@ -162,8 +184,8 @@ public final class SalesforceAuthenticationUtil {
 
         MultivaluedHashMap<String, String> formData = new MultivaluedHashMap<>();
         formData.put("grant_type", Collections.singletonList("password"));
-        formData.put("client_id", Collections.singletonList(SalesforceAuthenticationUtil.CLIENT_ID));
-        formData.put("client_secret", Collections.singletonList(SalesforceAuthenticationUtil.CLIENT_SECRET));
+        formData.put("client_id", Collections.singletonList(clientApp.clientId));
+        formData.put("client_secret", Collections.singletonList(clientApp.clientSecret));
         formData.put("username", Collections.singletonList(user));
         formData.put("password", Collections.singletonList(password + securityToken));
 
@@ -173,6 +195,10 @@ public final class SalesforceAuthenticationUtil {
             final var json = SalesforceRESTUtil.readAsJsonStructure(responseStr).asJsonObject();
 
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
+                if (response.getStatus() == 400) {
+                    // credentials were rejected
+                    throw new IOException("Authentication failed. Please provide valid credentials.");
+                }
 
                 final var errorDescriptionValue = json.getValue("/error_description");
                 final var errorDescription =  errorDescriptionValue != null//
@@ -180,9 +206,11 @@ public final class SalesforceAuthenticationUtil {
                         : null;
 
                 throw new IOException(//
-                    String.format("Authentication failed (status %d): \"%s\"%s", response.getStatus(), //
-                        response.getStatusInfo().getReasonPhrase(), //
-                        errorDescription != null ? (" - error: \"" + errorDescription + "\"") : ""));
+                    String.format("Authentication failed (HTTP %d: %s)",//
+                        response.getStatus(), //
+                        errorDescription != null//
+                            ? errorDescription//
+                            : response.getStatusInfo().getReasonPhrase()));
             }
 
             final var accessToken = json.getString("access_token");
@@ -197,7 +225,9 @@ public final class SalesforceAuthenticationUtil {
                 null,//
                 instanceUrl,//
                 responseStr);
-
+        } catch (JsonParsingException e) {
+            throw new IOException("Could not parse reponse. The Client/App data may be incorrect or malformed. "
+                + "Try loggin in interactively.", e);
         } catch (RuntimeException e) {
             throw new IOException(e);
         } finally {
@@ -213,9 +243,24 @@ public final class SalesforceAuthenticationUtil {
      * @return a newly acquired {@link AccessTokenCredential}
      */
     public static AccessTokenCredential refreshToken(final String refreshToken, final boolean isSandbox) {
+        return refreshToken(refreshToken, isSandbox, DEFAULT_CLIENTAPP);
+    }
+
+
+
+    /**
+     * Uses the given refresh token to fetch a new {@link AccessTokenCredential}.
+     *
+     * @param refreshToken the refresh token to use.
+     * @param isSandbox whether or not to acquire an access token for the Salesforce sandbox.
+     * @param clientApp client app id and secret to use
+     * @return a newly acquired {@link AccessTokenCredential}
+     */
+    public static AccessTokenCredential refreshToken(
+        final String refreshToken, final boolean isSandbox, final ClientApp clientApp) {
 
         final var api = isSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance();
-        try (final var service = new ServiceBuilder(CLIENT_ID).build(api)) {
+        try (final var service = new ServiceBuilder(clientApp.clientId).build(api)) {
             final var newToken = (SalesforceToken)service.refreshAccessToken(refreshToken);
 
             Supplier<AccessTokenCredential> refresher = null;
@@ -259,9 +304,27 @@ public final class SalesforceAuthenticationUtil {
      * @return A future holding the authentication
      * @throws IOException if the authentication fails because of any reason
      */
-    @SuppressWarnings("resource") // The service and server are closed by a waiting thread
     public static Future<SalesforceToken> authenticateInteractively(final boolean isUseSandbox)
-        throws IOException {
+             throws IOException {
+        return authenticateInteractively(isUseSandbox, DEFAULT_CLIENTAPP);
+    }
+
+    /**
+     * Authenticate with Salesforce using OAuth2. Note that a web browser will be opened asking the user to login. This
+     * call does not block until the user has authenticated. Wait until the future is done.
+     *
+     * Cancel the future to cancel the authentication process.
+     *
+     * @param isUseSandbox where to connect to (as per {@link SalesforceApi}.
+     * @param clientApp client app id and secret to use
+     *
+     * @return A future holding the authentication
+     * @throws IOException if the authentication fails because of any reason
+     */
+    @SuppressWarnings("resource") // The service and server are closed by a waiting thread
+    public static Future<SalesforceToken> authenticateInteractively(
+        final boolean isUseSandbox, final ClientApp clientApp)
+                throws IOException {
 
         if (!OAUTH_IN_PROGRESS.getAndSet(true)) {
 
@@ -269,13 +332,16 @@ public final class SalesforceAuthenticationUtil {
             final var authFuture = new SalesforceAuthenticationFuture();
 
             // The OAuth20 service
-            final OAuth20Service service = new ServiceBuilder(CLIENT_ID) //
-                .apiSecret(CLIENT_SECRET) //
+            final OAuth20Service service = new ServiceBuilder(clientApp.clientId) //
+                .apiSecret(clientApp.clientSecret) //
                 .callback(OAUTH_CALLBACK_URL) //
                 .build(isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance());
 
+            final var authorizationUrlBuilder = service.createAuthorizationUrlBuilder()//
+                    .initPKCE();
+
             var callbackServer = new Server(OAUTH_CALLBACK_PORT);
-            var callbackHandler = new OAuthCallbackHandler(service, authFuture);
+            var callbackHandler = new OAuthCallbackHandler(service, authorizationUrlBuilder.getPkce(), authFuture);
             callbackServer.setHandler(callbackHandler);
             try {
                 callbackServer.start();
@@ -286,12 +352,10 @@ public final class SalesforceAuthenticationUtil {
             // Start a thread which closes the service and everything once the authentication is done
             startClosingThread(authFuture, service, callbackServer);
 
-            // Start the authentication flow
-            final String authorizationUrl = service.getAuthorizationUrl();
 
             // Open the browser and show the authentication site
             try {
-                DesktopUtil.browse(new URL(authorizationUrl));
+                DesktopUtil.browse(new URL(authorizationUrlBuilder.build()));
             } catch (final MalformedURLException ex) {
                 authFuture.cancel(true);
                 throw new IOException("Malformed authentication URL: " + ex.getMessage(), ex);
@@ -313,43 +377,54 @@ public final class SalesforceAuthenticationUtil {
 
         private final OAuth20Service m_service;
 
-        OAuthCallbackHandler(final OAuth20Service service, final SalesforceAuthenticationFuture authFuture) {
+        private final PKCE m_pkce;
+
+        OAuthCallbackHandler(final OAuth20Service service, final PKCE pkce,
+            final SalesforceAuthenticationFuture authFuture) {
+
             m_service = service;
+            m_pkce= pkce;
             m_authFuture = authFuture;
         }
 
         @Override
-        public boolean handle(final Request request, final Response response, final Callback callback) throws Exception {
+        public boolean handle(final Request request, final Response response, final Callback callback)
+            throws Exception {
+
             if (!OAUTH_LISTENER_PATH.equals(request.getHttpURI().getPath())) {
                 Response.writeError(request, response, callback, HttpStatus.NOT_FOUND_404);
-                return true;
+            } else {
+
+                try {
+                    // Get the auth code
+                    final Optional<String> authCode = getAuthCodeFromRequest(request);
+                    if (authCode.isPresent()) {
+
+                        // Request a token
+                        final var params = AccessTokenRequestParams.create(authCode.get())//
+                                .pkceCodeVerifier(m_pkce.getCodeVerifier());
+                        final var salesforceToken = (SalesforceToken)m_service.getAccessToken(params);
+                        // Set the future result
+                        m_authFuture.setResult(salesforceToken);
+                        configureResponse(response, 200, OAUTH_SUCCESS_PAGE, callback);
+                    } else {
+                        throw new IOException(getErrorFromRequest(request));
+                    }
+                } catch (final Throwable t) { // NOSONAR
+                    m_authFuture.setFailed(t);
+                    configureResponse(response, 400, OAUTH_ERROR_PAGE + t.getMessage(), callback);
+                }
             }
 
-            try {
-                // Get the auth code
-                final Optional<String> authCode = getAuthCodeFromRequest(request);
-                if (authCode.isPresent()) {
-                    // Request a token
-                    final var salesforceToken = (SalesforceToken)m_service.getAccessToken(authCode.get());
-                    // Set the future result
-                    m_authFuture.setResult(salesforceToken);
-                    configureResponse(response, 200, OAUTH_SUCCESS_PAGE, callback);
-                } else {
-                    throw new IOException(getErrorFromRequest(request));
-                }
-            } catch (final Throwable t) { // NOSONAR
-                m_authFuture.setFailed(t);
-                configureResponse(response, 400, OAUTH_ERROR_PAGE + t.getMessage(), callback);
-            }
-            return true;
+            return true; // NOSONAR
         }
 
         private static void configureResponse(final Response response, final int status, final String message,
-            final Callback callback) throws IOException {
+            final Callback callback) {
+
             response.getHeaders().put(HttpHeader.CONTENT_TYPE, MediaType.TEXT_HTML);
             response.setStatus(status);
             Content.Sink.write(response, true, message, callback);
-
         }
 
         /** Get the auth code from the parameters of a request */
@@ -357,7 +432,7 @@ public final class SalesforceAuthenticationUtil {
             try {
                 return Optional.ofNullable(Request.getParameters(request).get("code").getValue())
                     .map(Strings::emptyToNull);
-            } catch (Exception ex) {
+            } catch (Exception ex) { // NOSONAR
                 return Optional.empty();
             }
         }
@@ -450,4 +525,11 @@ public final class SalesforceAuthenticationUtil {
             return setException(throwable);
         }
     }
+
+    /**
+     * Contains the configuration for a Salesforce client app
+     * @param clientId the client app id
+     * @param clientSecret the client app secret
+     */
+    public record ClientApp(String clientId, String clientSecret) { }
 }

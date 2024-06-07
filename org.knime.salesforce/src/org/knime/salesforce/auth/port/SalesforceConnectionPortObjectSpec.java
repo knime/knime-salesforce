@@ -54,12 +54,12 @@ import java.util.UUID;
 
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.ModelContentRO;
+import org.knime.core.node.ModelContentWO;
 import org.knime.core.node.util.CheckUtils;
 import org.knime.credentials.base.Credential;
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.CredentialRef;
-import org.knime.credentials.base.oauth.api.AccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.rest.Timeouts;
 
@@ -89,7 +89,7 @@ public final class SalesforceConnectionPortObjectSpec extends CredentialPortObje
      * @param timeouts HTTP timeouts to use by downstream nodes.
      */
     public SalesforceConnectionPortObjectSpec(final UUID cacheId, final Timeouts timeouts) {
-        super(AccessTokenCredential.TYPE, cacheId);
+        super(SalesforceAccessTokenCredential.TYPE, cacheId);
         m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
     }
 
@@ -128,6 +128,12 @@ public final class SalesforceConnectionPortObjectSpec extends CredentialPortObje
     public CredentialRef toRef() {
         lazyRestoreLegacyCredential();
         return super.toRef();
+    }
+
+    @Override
+    protected void save(final ModelContentWO model) {
+        super.save(model);
+        m_timeouts.save(model);
     }
 
     @Override

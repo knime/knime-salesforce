@@ -159,7 +159,7 @@ public class SalesforceAccessTokenCredential
 
     @Override
     public CredentialPortViewData describe() {
-        return new CredentialPortViewData(List.of(new Section("Databricks Credentials", new String[][]{//
+        return new CredentialPortViewData(List.of(new Section("Salesforce Credentials", new String[][]{//
             {"Property", "Value"}, //
             {"Salesforce instance URL", m_salesforceInstanceUrl.toString()}, //
             {"Token", obfuscate("xxxxxxxxxxxxxxxxxxxxxxxx")}, // okay, this is just for show really...
