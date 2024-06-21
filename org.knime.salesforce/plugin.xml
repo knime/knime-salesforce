@@ -46,7 +46,7 @@
    <extension
          point="org.knime.core.PortType">
       <portType
-            hidden="false"
+            hidden="true"
             name="Salesforce Connection"
             color="#4386f7"
             objectClass="org.knime.salesforce.auth.port.SalesforceConnectionPortObject"
