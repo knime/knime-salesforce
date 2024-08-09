@@ -161,7 +161,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     AuthType m_authType = AuthType.INTERACTIVE;
 
     @Widget(title = "Username/Password credentials", description = """
-              Specify the username, password and security token to use.
+              Specify the username, password and security token (optional) to use.
             """)
     @CredentialsWidget(hasSecondAuthenticationFactor = true, secondFactorLabel = "Security token")
     @Layout(UsernamePasswordSection.class)
@@ -258,10 +258,10 @@ Connected App</a> to use when connecting to Salesforce. The following values are
 
         if (m_authType == AuthType.USERNAME_PASSWORD && //
             (StringUtils.isBlank(m_usernamePasswordCredentials.getUsername()) || //
-                StringUtils.isBlank(m_usernamePasswordCredentials.getPassword()) || //
-                StringUtils.isBlank(m_usernamePasswordCredentials.getSecondFactor()))) {
+                StringUtils.isBlank(m_usernamePasswordCredentials.getPassword()))) {
             throw new InvalidSettingsException(
-                "Please specify the username, password and security token of the Salesforce account to use");
+                "Please specify the username, password and optionally the security token of the Salesforce account"
+                + "to use");
         }
 
         if (m_appType == ConnectedAppType.CUSTOM && //
