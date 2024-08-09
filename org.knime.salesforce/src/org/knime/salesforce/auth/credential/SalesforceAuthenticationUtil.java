@@ -156,7 +156,7 @@ public final class SalesforceAuthenticationUtil {
      *
      * @param user
      * @param password
-     * @param securityToken
+     * @param securityToken The optional security token to use. May be blank/null, in which case it will be ignored.
      * @param isUseSandbox production or test instance?
      * @param timeouts http connect/read timeouts.
      * @param clientApp client app id and secret to use
@@ -167,9 +167,8 @@ public final class SalesforceAuthenticationUtil {
         final String securityToken, final boolean isUseSandbox, final Timeouts timeouts, final ClientApp clientApp)
         throws IOException {
 
-        CheckUtils.checkArgument(StringUtils.isNotEmpty(user), "User must not be empty (or null)");
+        CheckUtils.checkArgument(StringUtils.isNotEmpty(user), "User must not be empty");
         CheckUtils.checkArgument(StringUtils.isNotEmpty(password), "Password must not be empty");
-        CheckUtils.checkArgumentNotNull(securityToken, "Security token must not be null");
         CheckUtils.checkArgumentNotNull(timeouts, "Timeout setting must not be null");
 
         final var api = isUseSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance();
@@ -187,7 +186,11 @@ public final class SalesforceAuthenticationUtil {
         formData.put("client_id", Collections.singletonList(clientApp.clientId));
         formData.put("client_secret", Collections.singletonList(clientApp.clientSecret));
         formData.put("username", Collections.singletonList(user));
-        formData.put("password", Collections.singletonList(password + securityToken));
+        if (StringUtils.isEmpty(securityToken)) {
+            formData.put("password", Collections.singletonList(password));
+        } else {
+            formData.put("password", Collections.singletonList(password + securityToken));
+        }
 
         try (final AuthenticationCloseable c = ThreadLocalHTTPAuthenticator.suppressAuthenticationPopups();
             final var response = client.form(new Form(formData))) {
