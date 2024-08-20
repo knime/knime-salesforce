@@ -70,12 +70,6 @@ import org.knime.core.webui.node.dialog.defaultdialog.layout.After;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.Layout;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.Section;
 import org.knime.core.webui.node.dialog.defaultdialog.persistence.field.Persist;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.And;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.ConstantSignal;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.Effect;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.Effect.EffectType;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.OneOfEnumCondition;
-import org.knime.core.webui.node.dialog.defaultdialog.rule.Signal;
 import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
@@ -85,6 +79,12 @@ import org.knime.core.webui.node.dialog.defaultdialog.widget.button.ButtonWidget
 import org.knime.core.webui.node.dialog.defaultdialog.widget.button.CancelableActionHandler;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.credentials.CredentialsWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.handler.WidgetHandlerException;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect.EffectType;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Predicate;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.PredicateProvider;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Reference;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.ValueReference;
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
@@ -92,6 +92,8 @@ import org.knime.credentials.base.oauth.api.nodesettings.TokenCacheKeyPersistor;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil.ClientApp;
+import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsInteractiveAndCredentialInputNotConnected;
+import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsUsernamePasswordAndCredentialInputNotConnected;
 import org.knime.salesforce.rest.Timeouts;
 
 import com.github.scribejava.apis.SalesforceApi;
@@ -108,21 +110,19 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceConnector2NodeSettings.class);
 
     @Section(title = "Username and Password")
-    @Effect(signals = {AuthType.IsUsernamePassword.class, CredentialInputNotConnectedSignal.class}, //
-        operation = And.class, //
-        type = EffectType.SHOW)
+    @Effect(predicate = IsUsernamePasswordAndCredentialInputNotConnected.class, type = EffectType.SHOW)
     interface UsernamePasswordSection {
     }
 
     @Section(title = "Salesforce Instance", advanced = true)
-    @Effect(signals = CredentialInputNotConnectedSignal.class, //
+    @Effect(predicate = CredentialInputNotConnected.class, //
         type = EffectType.SHOW)
     @After(UsernamePasswordSection.class)
     interface SalesforceInstanceSection {
     }
 
     @Section(title = "Client/App", advanced = true)
-    @Effect(signals = CredentialInputNotConnectedSignal.class, //
+    @Effect(predicate = CredentialInputNotConnected.class, //
         type = EffectType.SHOW)
     @After(SalesforceInstanceSection.class)
     interface AppSection {
@@ -134,9 +134,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     }
 
     @Section(title = "Authentication")
-    @Effect(signals = {AuthType.IsInteractive.class, CredentialInputNotConnectedSignal.class}, //
-        operation = And.class, //
-        type = EffectType.SHOW)
+    @Effect(predicate = IsInteractiveAndCredentialInputNotConnected.class, type = EffectType.SHOW)
     @After(TimeoutsSection.class)
     interface AuthenticationSection {
     }
@@ -153,11 +151,8 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
                                                 to the optional input port.</li>
              </ul>
             """)
-    @Signal(condition = AuthType.IsInteractive.class)
-    @Signal(condition = AuthType.IsUsernamePassword.class)
-    @Effect(signals = CredentialInputNotConnectedSignal.class, //
-        operation = And.class, //
-        type = EffectType.SHOW)
+    @ValueReference(AuthTypeRef.class)
+    @Effect(predicate = CredentialInputNotConnected.class, type = EffectType.SHOW)
     AuthType m_authType = AuthType.INTERACTIVE;
 
     @Widget(title = "Username/Password credentials", description = """
@@ -179,17 +174,16 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     InstanceType m_salesforceInstanceType = InstanceType.PRODUCTION;
 
     @Widget(title = "Which Connected App to use", description = """
-The <a href="https://help.salesforce.com/s/articleView?id=sf.connected_app_overview.htm">
-Connected App</a> to use when connecting to Salesforce. The following values are supported:
-<ul>
-  <li><b>Default</b>: Connect using the KNIME Analytics Platform default app</li>
-  <li><b>Custom</b>: Connect using a custom Connected App.</li>
-</ul>
-""")
+            The <a href="https://help.salesforce.com/s/articleView?id=sf.connected_app_overview.htm">
+            Connected App</a> to use when connecting to Salesforce. The following values are supported:
+            <ul>
+              <li><b>Default</b>: Connect using the KNIME Analytics Platform default app</li>
+              <li><b>Custom</b>: Connect using a custom Connected App.</li>
+            </ul>
+            """)
     @ValueSwitchWidget
     @Layout(AppSection.class)
-    @Signal(condition = ConnectedAppType.IsDefault.class)
-    @Signal(condition = ConnectedAppType.IsCustom.class)
+    @ValueReference(ConnectedAppTypeRef.class)
     ConnectedAppType m_appType = ConnectedAppType.DEFAULT;
 
     @Widget(title = "Custom App", description = """
@@ -197,17 +191,17 @@ Connected App</a> to use when connecting to Salesforce. The following values are
             """)
     @CredentialsWidget(usernameLabel = "ID", passwordLabel = "Secret") // NOSONAR: no PASSWORD here
     @Layout(AppSection.class)
-    @Effect(signals = ConnectedAppType.IsCustom.class, type = EffectType.SHOW, ignoreOnMissingSignals = true)
+    @Effect(predicate = ConnectedAppType.IsCustom.class, type = EffectType.SHOW)
     Credentials m_customClientAppCredentials = new Credentials();
 
-    @Widget(title = "Connection timeout (seconds)",//
-            description = "The HTTP connection timeout used in this node and downstream Salesforce nodes.")
+    @Widget(title = "Connection timeout (seconds)", //
+        description = "The HTTP connection timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
     @NumberInputWidget(min = 0)
     int m_connectionTimeout = 30;
 
-    @Widget(title = "Read timeout (seconds)",//
-            description = "The HTTP read timeout used in this node and downstream Salesforce nodes.")
+    @Widget(title = "Read timeout (seconds)", //
+        description = "The HTTP read timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
     @NumberInputWidget(min = 0)
     int m_readTimeout = 60;
@@ -220,7 +214,7 @@ Connected App</a> to use when connecting to Salesforce. The following values are
             allows to interactively log into the service.""")
     @Layout(AuthenticationSection.class)
     @Persist(optional = true, hidden = true, customPersistor = TokenCacheKeyPersistor.class)
-    @Effect(signals = AuthType.IsInteractive.class, type = EffectType.SHOW)
+    @Effect(predicate = AuthType.IsInteractive.class, type = EffectType.SHOW)
     UUID m_loginCredentialRef;
 
     Timeouts getTimeouts() {
@@ -261,14 +255,13 @@ Connected App</a> to use when connecting to Salesforce. The following values are
                 StringUtils.isBlank(m_usernamePasswordCredentials.getPassword()))) {
             throw new InvalidSettingsException(
                 "Please specify the username, password and optionally the security token of the Salesforce account"
-                + "to use");
+                    + "to use");
         }
 
         if (m_appType == ConnectedAppType.CUSTOM && //
             (StringUtils.isBlank(m_customClientAppCredentials.getUsername()) || //
                 StringUtils.isBlank(m_customClientAppCredentials.getPassword()))) {
-            throw new InvalidSettingsException(
-                "Please specify both the client ID and secret of the custom app to use");
+            throw new InvalidSettingsException("Please specify both the client ID and secret of the custom app to use");
         }
         return false;
     }
@@ -278,8 +271,8 @@ Connected App</a> to use when connecting to Salesforce. The following values are
             if (specs[i] instanceof CredentialPortObjectSpec spec) {
                 final var optCredType = spec.getCredentialType();
                 if (optCredType.isPresent()) {
-                    CheckUtils.checkSetting(optCredType.get() == SalesforceAccessTokenCredential.TYPE,//
-                            "Ingoing credential is incompatible, it must be a Salesforce credential.");
+                    CheckUtils.checkSetting(optCredType.get() == SalesforceAccessTokenCredential.TYPE, //
+                        "Ingoing credential is incompatible, it must be a Salesforce credential.");
                 }
                 return true;
             }
@@ -360,14 +353,17 @@ Connected App</a> to use when connecting to Salesforce. The following values are
     /**
      * Constant signal to indicate whether the user has added a credential port or not.
      */
-    public static final class CredentialInputNotConnectedSignal implements ConstantSignal {
+    static final class CredentialInputNotConnected implements PredicateProvider {
         @Override
-        public boolean applies(final DefaultNodeSettingsContext context) {
+        public Predicate init(final PredicateInitializer i) {
             // to guide the user to the error we disable the GUI also if the credential
             // input is not of the correct type per se
-            return Arrays.stream(context.getPortObjectSpecs())//
-                .noneMatch(CredentialPortObjectSpec.class::isInstance);
+            return i.getConstant(context -> Arrays.stream(context.getPortObjectSpecs())
+                .noneMatch(CredentialPortObjectSpec.class::isInstance));
         }
+    }
+
+    static final class AuthTypeRef implements Reference<AuthType> {
     }
 
     enum AuthType {
@@ -377,17 +373,25 @@ Connected App</a> to use when connecting to Salesforce. The following values are
             @Label("Username/Password")
             USERNAME_PASSWORD;
 
-        static class IsUsernamePassword extends OneOfEnumCondition<AuthType> {
+        static final class IsUsernamePasswordAndCredentialInputNotConnected implements PredicateProvider {
             @Override
-            public AuthType[] oneOf() {
-                return new AuthType[]{USERNAME_PASSWORD};
+            public Predicate init(final PredicateInitializer i) {
+                return i.getEnum(AuthTypeRef.class).isOneOf(USERNAME_PASSWORD)
+                    .and(i.getPredicate(CredentialInputNotConnected.class));
             }
         }
 
-        static class IsInteractive extends OneOfEnumCondition<AuthType> {
+        static final class IsInteractive implements PredicateProvider {
             @Override
-            public AuthType[] oneOf() {
-                return new AuthType[]{INTERACTIVE};
+            public Predicate init(final PredicateInitializer i) {
+                return i.getEnum(AuthTypeRef.class).isOneOf(INTERACTIVE);
+            }
+        }
+
+        static final class IsInteractiveAndCredentialInputNotConnected implements PredicateProvider {
+            @Override
+            public Predicate init(final PredicateInitializer i) {
+                return i.getPredicate(IsInteractive.class).and(i.getPredicate(CredentialInputNotConnected.class));
             }
         }
     }
@@ -403,23 +407,22 @@ Connected App</a> to use when connecting to Salesforce. The following values are
             SANDBOX;
     }
 
-    public enum ConnectedAppType {
+    static final class ConnectedAppTypeRef implements Reference<ConnectedAppType> {
+    }
+
+    enum ConnectedAppType {
             @Label("Default")
             DEFAULT, //
             @Label("Custom")
             CUSTOM;
 
-        public static class IsDefault extends OneOfEnumCondition<ConnectedAppType> {
+        static final class IsCustom implements PredicateProvider {
             @Override
-            public ConnectedAppType[] oneOf() {
-                return new ConnectedAppType[]{DEFAULT};
-            }
-        }
-
-        public static class IsCustom extends OneOfEnumCondition<ConnectedAppType> {
-            @Override
-            public ConnectedAppType[] oneOf() {
-                return new ConnectedAppType[]{CUSTOM};
+            public Predicate init(final PredicateInitializer i) {
+                if (i.isMissing(ConnectedAppTypeRef.class)) {
+                    return i.never();
+                }
+                return i.getEnum(ConnectedAppTypeRef.class).isOneOf(CUSTOM);
             }
         }
     }
