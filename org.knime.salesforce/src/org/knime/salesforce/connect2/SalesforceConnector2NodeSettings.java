@@ -109,7 +109,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceConnector2NodeSettings.class);
 
-    @Section(title = "Username and Password")
+    @Section(title = "Credentials")
     @Effect(predicate = IsUsernamePasswordAndCredentialInputNotConnected.class, type = EffectType.SHOW)
     interface UsernamePasswordSection {
     }
@@ -155,10 +155,10 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     @Effect(predicate = CredentialInputNotConnected.class, type = EffectType.SHOW)
     AuthType m_authType = AuthType.INTERACTIVE;
 
-    @Widget(title = "Username/Password credentials", description = """
+    @Widget(title = "User credentials", description = """
               Specify the username, password and security token (optional) to use.
             """)
-    @CredentialsWidget(hasSecondAuthenticationFactor = true, secondFactorLabel = "Security token")
+    @CredentialsWidget(hasSecondAuthenticationFactor = true, secondFactorLabel = "Security Token")
     @Layout(UsernamePasswordSection.class)
     Credentials m_usernamePasswordCredentials = new Credentials();
 
