@@ -50,7 +50,10 @@ package org.knime.salesforce.auth.credential;
 
 import static org.knime.credentials.base.secretstore.ParserUtil.getStringField;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
+import java.util.function.Supplier;
 
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
 import org.knime.credentials.base.secretstore.SecretConsumableParserProvider;
@@ -75,17 +78,36 @@ public class SalesforceAccessTokenCredentialParserProvider
         super("salesforce_oauth2", SalesforceAccessTokenCredentialParserProvider::parse);
     }
 
-    private static SalesforceAccessTokenCredential parse(final JsonObject consumable)
+    private static SalesforceAccessTokenCredential parse(final Supplier<JsonObject> consumableSupplier)
             throws UnparseableSecretConsumableException {
 
-        final var accessTokenCredential = new AccessTokenCredential(//
-            getStringField(consumable, "accessToken"),//
-            null, // expiry
-            getStringField(consumable, "tokenType"),//
-            null); // the refresher is null for now
+        final var consumable = consumableSupplier.get();
+        final var accessTokenCredential = createAccessTokenCredential(consumable, consumableSupplier);
 
         return new SalesforceAccessTokenCredential(//
                 URI.create(getStringField(consumable, "salesforceInstanceUrl")), //
                 accessTokenCredential);
+    }
+
+    private static AccessTokenCredential createAccessTokenCredential(final JsonObject consumable,
+        final Supplier<JsonObject> consumableSupplier) throws UnparseableSecretConsumableException {
+
+        return new AccessTokenCredential(//
+            getStringField(consumable, "accessToken"),//
+            null, // expiry
+            getStringField(consumable, "tokenType"),//
+            createTokenRefresher(consumableSupplier));
+    }
+
+
+    private static Supplier<AccessTokenCredential> createTokenRefresher(final Supplier<JsonObject> consumableSupplier) {
+        return () -> {
+            try {
+                final var consumable = consumableSupplier.get();
+                return createAccessTokenCredential(consumable, consumableSupplier);
+            } catch (final UnparseableSecretConsumableException ex) {
+                throw new UncheckedIOException(ex.getMessage(), new IOException(ex));
+            }
+        };
     }
 }
