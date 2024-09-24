@@ -84,7 +84,7 @@ with other Salesforce nodes, or as credential in the REST nodes.
 
 <p>This node uses a
 <a href="https://help.salesforce.com/s/articleView?id=sf.connected_app_overview.htm">
-Connected App</a> to connect to Salesforce. By default the KNIME Analytics Platform app needs to be registered
+Connected App</a> to connect to Salesforce. By default, the KNIME Analytics Platform app needs to be registered
 with your Salesforce domain. Please contact your Salesforce administrator or <a href="https://www.knime.com/contact">
 KNIME</a> to get more information.
 </p>

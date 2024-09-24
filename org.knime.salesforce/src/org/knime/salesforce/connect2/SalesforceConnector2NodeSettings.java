@@ -254,7 +254,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             (StringUtils.isBlank(m_usernamePasswordCredentials.getUsername()) || //
                 StringUtils.isBlank(m_usernamePasswordCredentials.getPassword()))) {
             throw new InvalidSettingsException(
-                "Please specify the username, password and optionally the security token of the Salesforce account"
+                "Please specify the username, password and optionally the security token of the Salesforce account "
                     + "to use");
         }
 
@@ -331,7 +331,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
                 throw new WidgetHandlerException("Login process was interrupted!");
             } catch (ExecutionException e) {
                 LOGGER.error(e.getMessage(), e);
-                throw new WidgetHandlerException("An error occured during the login process!");
+                throw new WidgetHandlerException("An error occurred during the login process!");
             }
         }
 
