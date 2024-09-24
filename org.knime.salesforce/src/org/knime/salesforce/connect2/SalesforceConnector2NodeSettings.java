@@ -73,6 +73,9 @@ import org.knime.core.webui.node.dialog.defaultdialog.persistence.field.Persist;
 import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.MessageType;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.SimpleTextMessageProvider;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.ValueSwitchWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.Widget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.button.ButtonWidget;
@@ -106,6 +109,37 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
  */
 @SuppressWarnings("restriction") // New Node UI is not yet API
 final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
+
+    private static boolean credentialsPortIsConnected(final DefaultNodeSettingsContext context) {
+        return Arrays.stream(context.getPortObjectSpecs()).anyMatch(CredentialPortObjectSpec.class::isInstance);
+    }
+
+    static final class AuthenticationManagedByMessage implements SimpleTextMessageProvider {
+
+        @Override
+        public boolean showMessage(final DefaultNodeSettingsContext context) {
+            return credentialsPortIsConnected(context);
+        }
+
+        @Override
+        public String title() {
+            return "Authentication managed through Input port";
+        }
+
+        @Override
+        public String description() {
+            return "Disconnect to use the method Interactive or Username/Password";
+        }
+
+        @Override
+        public MessageType type() {
+            return MessageType.INFO;
+        }
+
+    }
+
+    @TextMessage(value = AuthenticationManagedByMessage.class)
+    Void m_authenticationManagedByText;
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceConnector2NodeSettings.class);
 
@@ -152,7 +186,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
              </ul>
             """)
     @ValueReference(AuthTypeRef.class)
-    @Effect(predicate = CredentialInputNotConnected.class, type = EffectType.SHOW)
+    @Effect(predicate = CredentialInputNotConnected.class, type = EffectType.ENABLE)
     AuthType m_authType = AuthType.INTERACTIVE;
 
     @Widget(title = "User credentials", description = """
@@ -358,8 +392,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
         public Predicate init(final PredicateInitializer i) {
             // to guide the user to the error we disable the GUI also if the credential
             // input is not of the correct type per se
-            return i.getConstant(context -> Arrays.stream(context.getPortObjectSpecs())
-                .noneMatch(CredentialPortObjectSpec.class::isInstance));
+            return i.getConstant(context -> !credentialsPortIsConnected(context));
         }
     }
 
