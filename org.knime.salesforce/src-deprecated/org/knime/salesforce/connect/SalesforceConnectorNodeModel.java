@@ -105,7 +105,7 @@ final class SalesforceConnectorNodeModel extends NodeModel {
     }
 
     private SalesforceConnectionPortObjectSpec configureInternal() throws InvalidSettingsException {
-        m_credentialCacheKey = null;
+        invalidateCredential();
 
         // Check if the user is authenticated
         CheckUtils.checkSettingNotNull(m_settings, "No configuration available");
@@ -134,10 +134,11 @@ final class SalesforceConnectorNodeModel extends NodeModel {
     @Override
     protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec)
         throws Exception {
+        invalidateCredential();
 
         final var credential = getCredential();
-        final var cacheId = CredentialCache.store(credential);
-        final var spec = new SalesforceConnectionPortObjectSpec(cacheId, m_settings.getTimeouts());
+        m_credentialCacheKey = CredentialCache.store(credential);
+        final var spec = new SalesforceConnectionPortObjectSpec(m_credentialCacheKey, m_settings.getTimeouts());
 
         return new PortObject[] {new SalesforceConnectionPortObject(spec)};
     }
@@ -203,8 +204,7 @@ final class SalesforceConnectorNodeModel extends NodeModel {
             toAccessTokenCredential(sfToken));
     }
 
-    @Override
-    protected void reset() {
+    private void invalidateCredential() {
         if (m_credentialCacheKey != null) {
             CredentialCache.delete(m_credentialCacheKey);
             m_credentialCacheKey = null;
@@ -212,8 +212,13 @@ final class SalesforceConnectorNodeModel extends NodeModel {
     }
 
     @Override
+    protected void reset() {
+        invalidateCredential();
+    }
+
+    @Override
     protected void onDispose() {
-        reset();
+        invalidateCredential();
     }
 
     @Override
