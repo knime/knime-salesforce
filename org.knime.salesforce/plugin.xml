@@ -30,7 +30,7 @@
             factory-class="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory">
       </node>
       <node
-            after="org.knime.salesforce.extractor.SalesforceAuthExtractNodeFactory"
+            after="org.knime.salesforce.connect2.SalesforceConnector2NodeFactory"
             category-path="/toolintegration/salesforce"
             deprecated="false"
             factory-class="org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeFactory"
