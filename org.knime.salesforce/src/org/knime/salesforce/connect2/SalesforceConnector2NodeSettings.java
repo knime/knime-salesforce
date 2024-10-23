@@ -95,8 +95,8 @@ import org.knime.credentials.base.oauth.api.nodesettings.TokenCacheKeyPersistor;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil.ClientApp;
-import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsInteractiveAndCredentialInputNotConnected;
-import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsUsernamePasswordAndCredentialInputNotConnected;
+import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsInteractiveAndHasNoCredentialPort;
+import org.knime.salesforce.connect2.SalesforceConnector2NodeSettings.AuthType.IsUsernamePasswordAndHasNoCredentialPort;
 import org.knime.salesforce.rest.Timeouts;
 
 import com.github.scribejava.apis.SalesforceApi;
@@ -110,25 +110,26 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
 @SuppressWarnings("restriction") // New Node UI is not yet API
 final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
 
-    private static boolean credentialsPortIsConnected(final DefaultNodeSettingsContext context) {
-        return Arrays.stream(context.getPortObjectSpecs()).anyMatch(CredentialPortObjectSpec.class::isInstance);
+    private static boolean hasCredentialPort(final DefaultNodeSettingsContext context) {
+        return Arrays.stream(context.getInPortTypes())
+            .anyMatch(inPortType -> CredentialPortObjectSpec.class.equals(inPortType.getPortObjectSpecClass()));
     }
 
-    static final class AuthenticationManagedByMessage implements SimpleTextMessageProvider {
+    static final class AuthenticationManagedByPortMessage implements SimpleTextMessageProvider {
 
         @Override
         public boolean showMessage(final DefaultNodeSettingsContext context) {
-            return credentialsPortIsConnected(context);
+            return hasCredentialPort(context);
         }
 
         @Override
         public String title() {
-            return "Authentication managed through Input port";
+            return "Authentication managed by means of Credential input port";
         }
 
         @Override
         public String description() {
-            return "Disconnect to use the method Interactive or Username/Password";
+            return "Remove the Credential input port to use methods Interactive or Username/Password";
         }
 
         @Override
@@ -138,25 +139,25 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
 
     }
 
-    @TextMessage(value = AuthenticationManagedByMessage.class)
-    Void m_authenticationManagedByText;
+    @TextMessage(value = AuthenticationManagedByPortMessage.class)
+    Void m_authenticationManagedByPortText;
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceConnector2NodeSettings.class);
 
     @Section(title = "Credentials")
-    @Effect(predicate = IsUsernamePasswordAndCredentialInputNotConnected.class, type = EffectType.SHOW)
+    @Effect(predicate = IsUsernamePasswordAndHasNoCredentialPort.class, type = EffectType.SHOW)
     interface UsernamePasswordSection {
     }
 
     @Section(title = "Salesforce Instance", advanced = true)
-    @Effect(predicate = CredentialInputNotConnected.class, //
+    @Effect(predicate = HasNoCredentialPort.class, //
         type = EffectType.SHOW)
     @After(UsernamePasswordSection.class)
     interface SalesforceInstanceSection {
     }
 
     @Section(title = "Client/App", advanced = true)
-    @Effect(predicate = CredentialInputNotConnected.class, //
+    @Effect(predicate = HasNoCredentialPort.class, //
         type = EffectType.SHOW)
     @After(SalesforceInstanceSection.class)
     interface AppSection {
@@ -168,7 +169,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     }
 
     @Section(title = "Authentication")
-    @Effect(predicate = IsInteractiveAndCredentialInputNotConnected.class, type = EffectType.SHOW)
+    @Effect(predicate = IsInteractiveAndHasNoCredentialPort.class, type = EffectType.SHOW)
     @After(TimeoutsSection.class)
     interface AuthenticationSection {
     }
@@ -186,7 +187,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
              </ul>
             """)
     @ValueReference(AuthTypeRef.class)
-    @Effect(predicate = CredentialInputNotConnected.class, type = EffectType.ENABLE)
+    @Effect(predicate = HasNoCredentialPort.class, type = EffectType.ENABLE)
     AuthType m_authType = AuthType.INTERACTIVE;
 
     @Widget(title = "User credentials", description = """
@@ -387,12 +388,12 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     /**
      * Constant signal to indicate whether the user has added a credential port or not.
      */
-    static final class CredentialInputNotConnected implements PredicateProvider {
+    static final class HasNoCredentialPort implements PredicateProvider {
         @Override
         public Predicate init(final PredicateInitializer i) {
             // to guide the user to the error we disable the GUI also if the credential
             // input is not of the correct type per se
-            return i.getConstant(context -> !credentialsPortIsConnected(context));
+            return i.getConstant(context -> !hasCredentialPort(context));
         }
     }
 
@@ -406,11 +407,11 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             @Label("Username/Password")
             USERNAME_PASSWORD;
 
-        static final class IsUsernamePasswordAndCredentialInputNotConnected implements PredicateProvider {
+        static final class IsUsernamePasswordAndHasNoCredentialPort implements PredicateProvider {
             @Override
             public Predicate init(final PredicateInitializer i) {
                 return i.getEnum(AuthTypeRef.class).isOneOf(USERNAME_PASSWORD)
-                    .and(i.getPredicate(CredentialInputNotConnected.class));
+                    .and(i.getPredicate(HasNoCredentialPort.class));
             }
         }
 
@@ -421,10 +422,10 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             }
         }
 
-        static final class IsInteractiveAndCredentialInputNotConnected implements PredicateProvider {
+        static final class IsInteractiveAndHasNoCredentialPort implements PredicateProvider {
             @Override
             public Predicate init(final PredicateInitializer i) {
-                return i.getPredicate(IsInteractive.class).and(i.getPredicate(CredentialInputNotConnected.class));
+                return i.getPredicate(IsInteractive.class).and(i.getPredicate(HasNoCredentialPort.class));
             }
         }
     }
