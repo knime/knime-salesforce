@@ -1,5 +1,7 @@
 # ![Image](https://www.knime.com/files/knime_logo_github_40x40_4layers.png) KNIME® Salesforce Integration
 
+This repository is maintained by the [KNIME Team Quokkas](mailto:scrum-bd-esi@knime.com).
+
 This repository contains the plugins for the KNIME Salesforce Integration.
 It contains a set of nodes to authenticate against Salesforce and read data from Salesforce.
 
