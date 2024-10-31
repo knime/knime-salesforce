@@ -124,12 +124,12 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
 
         @Override
         public String title() {
-            return "Authentication managed by means of Credential input port";
+            return "Authentication managed by Credential Input Port";
         }
 
         @Override
         public String description() {
-            return "Remove the Credential input port to use methods Interactive or Username/Password";
+            return "Remove the Credential Input Port to use methods Interactive or Username/Password";
         }
 
         @Override
