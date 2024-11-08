@@ -50,6 +50,7 @@ package org.knime.salesforce.auth.port;
 
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.port.PortTypeRegistry;
+import org.knime.core.webui.node.port.PortViewManager;
 import org.knime.credentials.base.CredentialPortObject;
 
 /**
@@ -59,12 +60,22 @@ import org.knime.credentials.base.CredentialPortObject;
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  * @author Bjoern Lohrmann, KNIME GmbH
  */
+@SuppressWarnings("restriction")
 public final class SalesforceConnectionPortObject extends CredentialPortObject {
 
     /** The type, eh. */
     @SuppressWarnings("hiding")
-    public static final PortType TYPE =
-        PortTypeRegistry.getInstance().getPortType(SalesforceConnectionPortObject.class);
+    public static final PortType TYPE;
+
+    static {
+        TYPE = PortTypeRegistry.getInstance().getPortType(SalesforceConnectionPortObject.class);
+
+        final var credentialPOView = PortViewManager.getPortViews(CredentialPortObject.TYPE);
+        PortViewManager.registerPortViews(TYPE, //
+            credentialPOView.viewDescriptors(), //
+            credentialPOView.configuredIndices(), //
+            credentialPOView.executedIndices());
+    }
 
     /** Serializer as required by ext point definition. */
     public static final class Serializer extends AbstractSimplePortObjectSerializer<SalesforceConnectionPortObject> {
