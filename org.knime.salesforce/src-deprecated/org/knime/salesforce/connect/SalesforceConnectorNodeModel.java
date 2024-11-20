@@ -113,19 +113,14 @@ final class SalesforceConnectorNodeModel extends NodeModel {
         final var isInteractiveInMemory = m_settings.getAuthType() == AuthType.Interactive
                 && m_settings.getCredentialsSaveLocation() == CredentialsLocationType.MEMORY;
 
-        if (isInteractiveInMemory) {
-            final var salesforceAuth =
-                InMemoryAuthenticationStore.getDialogToNodeExchangeInstance().get(m_settings.getNodeInstanceID());
-            m_credentialCacheKey = salesforceAuth.map(SalesforceAuthentication::toCredential)//
-                .map(CredentialCache::store).orElse(null);
-        }
-
         final var credSpec = new SalesforceConnectionPortObjectSpec(//
-            m_credentialCacheKey, //
+            null, // null cache key for now
             m_settings.getTimeouts());
 
         if (isInteractiveInMemory) {
-            CheckUtils.checkSetting(credSpec.isPresent(), NOT_AUTHENTICATED_MSG);
+            final var salesforceAuth = InMemoryAuthenticationStore.getDialogToNodeExchangeInstance()//
+                    .get(m_settings.getNodeInstanceID());
+            CheckUtils.checkSetting(salesforceAuth.isPresent(), NOT_AUTHENTICATED_MSG);
         }
 
         return credSpec;
@@ -136,8 +131,8 @@ final class SalesforceConnectorNodeModel extends NodeModel {
         throws Exception {
 
         final var credential = getCredential();
-        final var cacheId = CredentialCache.store(credential);
-        final var spec = new SalesforceConnectionPortObjectSpec(cacheId, m_settings.getTimeouts());
+        m_credentialCacheKey = CredentialCache.store(credential);
+        final var spec = new SalesforceConnectionPortObjectSpec(m_credentialCacheKey, m_settings.getTimeouts());
 
         return new PortObject[] {new SalesforceConnectionPortObject(spec)};
     }

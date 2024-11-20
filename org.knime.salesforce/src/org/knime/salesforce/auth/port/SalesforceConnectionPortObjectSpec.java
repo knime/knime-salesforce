@@ -85,7 +85,7 @@ public final class SalesforceConnectionPortObjectSpec extends CredentialPortObje
     /**
      * Constructor.
      *
-     * @param cacheId The cache UUID of the underlying {@link SalesforceAccessTokenCredential}.
+     * @param cacheId The cache UUID of the underlying {@link SalesforceAccessTokenCredential}. May be null if currently unknown.
      * @param timeouts HTTP timeouts to use by downstream nodes.
      */
     public SalesforceConnectionPortObjectSpec(final UUID cacheId, final Timeouts timeouts) {
