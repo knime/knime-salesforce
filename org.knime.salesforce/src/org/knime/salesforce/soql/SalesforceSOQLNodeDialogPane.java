@@ -89,6 +89,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.NotConfigurableException;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.ConvenientComboBoxRenderer;
 import org.knime.core.node.util.FlowVariableListCellRenderer;
@@ -269,47 +270,56 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     }
 
     @Override
-    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs) {
-        SalesforceSOQLNodeSettings soqlSettings = new SalesforceSOQLNodeSettings().loadSettingsInDialog(settings);
-        DefaultListModel<FlowVariable> flowVarModel = (DefaultListModel<FlowVariable>)m_flowVarsList.getModel();
-        flowVarModel.removeAllElements();
-        getAvailableFlowVariables(StringType.INSTANCE, DoubleType.INSTANCE, IntType.INSTANCE).values()//
+    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs)
+            throws NotConfigurableException {
+        if (specs != null && specs.length > 0 && specs[0] != null) {
+            if (!(specs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+                throw new NotConfigurableException(
+                        "Incompatible input connection. Connect the Salesforce Connector output port.");
+            }
+            SalesforceSOQLNodeSettings soqlSettings = new SalesforceSOQLNodeSettings().loadSettingsInDialog(settings);
+            DefaultListModel<FlowVariable> flowVarModel = (DefaultListModel<FlowVariable>)m_flowVarsList.getModel();
+            flowVarModel.removeAllElements();
+            getAvailableFlowVariables(StringType.INSTANCE, DoubleType.INSTANCE, IntType.INSTANCE).values()//
             .stream()//
             .forEach(flowVarModel::addElement);
 
-        DefaultListModel<Field> fieldModel = (DefaultListModel<Field>)m_fieldList.getModel();
-        fieldModel.removeAllElements();
+            DefaultListModel<Field> fieldModel = (DefaultListModel<Field>)m_fieldList.getModel();
+            fieldModel.removeAllElements();
 
-        DefaultComboBoxModel<SObject> sObjectsComboModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
-        sObjectsComboModel.removeAllElements();
-        m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
+            DefaultComboBoxModel<SObject> sObjectsComboModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo
+                    .getModel();
+            sObjectsComboModel.removeAllElements();
+            m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
 
-        if (m_portSpec != null && m_portSpec.isPresent()) {
+            if (m_portSpec != null && m_portSpec.isPresent()) {
 
-            sObjectsComboModel.addElement(FETCHING_CONTENT);
-            fieldModel.addElement(FETCHING_FIELD);
-            final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+                sObjectsComboModel.addElement(FETCHING_CONTENT);
+                fieldModel.addElement(FETCHING_FIELD);
+                final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
 
-            m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
-                DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
-                comboBoxModel.removeAllElements();
-                Set<SObject> sObjects = m_cache.getsObjectFieldCache().keySet();
-                boolean success = !sObjects.contains(FAILED_CONTENT);
-                sObjects.stream().sorted().forEach(comboBoxModel::addElement);
-                m_sObjectsCombo.setEnabled(success);
-            });
-        } else {
-            m_portSpec = null;
-            sObjectsComboModel.addElement(NO_AUTH_CONTENT);
-        }
-        m_sObjectsCombo.setEnabled(false);
-        m_sObjectsCombo.setEnabled(false);
-        m_soqlTextArea.setText(soqlSettings.getSOQL());
-        Arrays.asList(m_rawOutputRadio, m_recordOutputRadio).stream()//
+                m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
+                    DefaultComboBoxModel<SObject> comboBoxModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo
+                            .getModel();
+                    comboBoxModel.removeAllElements();
+                    Set<SObject> sObjects = m_cache.getsObjectFieldCache().keySet();
+                    boolean success = !sObjects.contains(FAILED_CONTENT);
+                    sObjects.stream().sorted().forEach(comboBoxModel::addElement);
+                    m_sObjectsCombo.setEnabled(success);
+                });
+            } else {
+                m_portSpec = null;
+                sObjectsComboModel.addElement(NO_AUTH_CONTENT);
+            }
+            m_sObjectsCombo.setEnabled(false);
+            m_sObjectsCombo.setEnabled(false);
+            m_soqlTextArea.setText(soqlSettings.getSOQL());
+            Arrays.asList(m_rawOutputRadio, m_recordOutputRadio).stream()//
             .filter(b -> b.getActionCommand().equals(soqlSettings.getOutputRepresentation().name()))//
             .findFirst().ifPresent(AbstractButton::doClick);
-        m_outputAsCount.setSelected(soqlSettings.isOutputAsCount());
-        m_soqlTextArea.requestFocus();
+            m_outputAsCount.setSelected(soqlSettings.isOutputAsCount());
+            m_soqlTextArea.requestFocus();
+        }
     }
 
     void onNewSalesforceObjectSelected(final SObject selected) {

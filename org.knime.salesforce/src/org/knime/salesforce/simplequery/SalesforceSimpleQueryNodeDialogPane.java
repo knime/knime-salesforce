@@ -86,6 +86,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.NotConfigurableException;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.StringHistoryPanel;
 import org.knime.core.node.util.ViewUtils;
@@ -283,57 +284,64 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     }
 
     @Override
-    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs) {
-        m_wherePanel.updateHistory();
-        m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
-
-        SalesforceSimpleQueryNodeSettings ssSetting = new SalesforceSimpleQueryNodeSettings().loadInDialog(settings);
-
-        m_isCurrentlyLoading = true;
-        try {
-            DefaultComboBoxModel<SObject> model = (DefaultComboBoxModel<SObject>)m_objectCombo.getModel();
-            model.removeAllElements();
-            String selectedObject = ssSetting.getObjectName();
-            SalesforceField[] selectedFields = ssSetting.getObjectFields();
-
-            if (m_portSpec != null && m_portSpec.isPresent()) {
-                model.addElement(FETCHING_CONTENT);
-                m_objectCombo.setEnabled(false);
-
-                m_preferredSelectedFieldsPerObjectMap.put(selectedObject, selectedFields);
-                m_salesforceFieldFilterPanel.setEnabled(false);
-
-                final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
-                m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
-                    model.removeAllElements();
-                    Set<SObject> allSObjects = m_cache.getsObjectFieldCache().keySet();
-                    allSObjects.stream().filter(SObject::isQueryable).sorted().forEach(model::addElement);
-                    allSObjects.stream().filter(s -> s.getName().equals(selectedObject)).findFirst()
-                    .ifPresent(m_objectCombo::setSelectedItem);
-                    m_objectCombo.setEnabled(!allSObjects.contains(FAILED_CONTENT));
-                });
-            } else {
-                m_objectCombo.setEnabled(false);
-                m_salesforceFieldFilterPanel.setEnabled(false);
-                model.addElement(SObject.of(selectedObject, selectedObject));
-                m_salesforceFieldFilterPanel.loadConfiguration(selectedFields, selectedFields);
+    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs)
+            throws NotConfigurableException{
+        if (specs != null && specs.length > 0 && specs[0] != null) {
+            if (!(specs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+                throw new NotConfigurableException(
+                    "Incompatible input connection. Connect the Salesforce Connector output port.");
             }
-            if (ssSetting.getDisplayName() == DisplayName.Label) {
-                m_useLabelsInRendererButton.doClick();
-            } else {
-                m_useTechNamesInRendererButton.doClick();
+            m_wherePanel.updateHistory();
+            m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
+
+            SalesforceSimpleQueryNodeSettings ssSetting = new SalesforceSimpleQueryNodeSettings()
+                    .loadInDialog(settings);
+            m_isCurrentlyLoading = true;
+            try {
+                DefaultComboBoxModel<SObject> model = (DefaultComboBoxModel<SObject>)m_objectCombo.getModel();
+                model.removeAllElements();
+                String selectedObject = ssSetting.getObjectName();
+                SalesforceField[] selectedFields = ssSetting.getObjectFields();
+
+                if (m_portSpec != null && m_portSpec.isPresent()) {
+                    model.addElement(FETCHING_CONTENT);
+                    m_objectCombo.setEnabled(false);
+
+                    m_preferredSelectedFieldsPerObjectMap.put(selectedObject, selectedFields);
+                    m_salesforceFieldFilterPanel.setEnabled(false);
+
+                    final var cred = m_portSpec.getCredential(SalesforceAccessTokenCredential.class).get(); // NOSONAR
+                    m_cache.executeNewSObjectsSwingWorker(cred, m_portSpec.getTimeouts(), () -> {
+                        model.removeAllElements();
+                        Set<SObject> allSObjects = m_cache.getsObjectFieldCache().keySet();
+                        allSObjects.stream().filter(SObject::isQueryable).sorted().forEach(model::addElement);
+                        allSObjects.stream().filter(s -> s.getName().equals(selectedObject)).findFirst()
+                        .ifPresent(m_objectCombo::setSelectedItem);
+                        m_objectCombo.setEnabled(!allSObjects.contains(FAILED_CONTENT));
+                    });
+                } else {
+                    m_objectCombo.setEnabled(false);
+                    m_salesforceFieldFilterPanel.setEnabled(false);
+                    model.addElement(SObject.of(selectedObject, selectedObject));
+                    m_salesforceFieldFilterPanel.loadConfiguration(selectedFields, selectedFields);
+                }
+                if (ssSetting.getDisplayName() == DisplayName.Label) {
+                    m_useLabelsInRendererButton.doClick();
+                } else {
+                    m_useTechNamesInRendererButton.doClick();
+                }
+            } finally {
+                m_isCurrentlyLoading = false;
             }
-        } finally {
-            m_isCurrentlyLoading = false;
-        }
 
-        m_wherePanel.setSelectedString(ssSetting.getWhereClause().orElse(""));
+            m_wherePanel.setSelectedString(ssSetting.getWhereClause().orElse(""));
 
-        OptionalInt limit = ssSetting.getLimit();
-        if (limit.isPresent() != m_limitChecker.isSelected()) {
-            m_limitChecker.doClick();
+            OptionalInt limit = ssSetting.getLimit();
+            if (limit.isPresent() != m_limitChecker.isSelected()) {
+                m_limitChecker.doClick();
+            }
+            m_limitSpinner.setValue(limit.orElse(100));
         }
-        m_limitSpinner.setValue(limit.orElse(100));
     }
 
     @Override
