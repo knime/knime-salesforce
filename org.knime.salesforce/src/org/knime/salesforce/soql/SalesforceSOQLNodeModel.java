@@ -63,9 +63,9 @@ import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
+import org.knime.credentials.base.CredentialPortObject;
 import org.knime.credentials.base.NoSuchCredentialException;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
-import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 import org.knime.salesforce.rest.soql.AbstractSOQLExecutor;
 import org.knime.salesforce.rest.soql.RawOutputSOQLExecutor;
@@ -81,11 +81,16 @@ final class SalesforceSOQLNodeModel extends NodeModel implements FlowVariablePro
     private SalesforceSOQLNodeSettings m_settings = new SalesforceSOQLNodeSettings();
 
     SalesforceSOQLNodeModel() {
-        super(new PortType[] {SalesforceConnectionPortObject.TYPE}, new PortType[] {BufferedDataTable.TYPE});
+        super(new PortType[] {CredentialPortObject.TYPE}, new PortType[] {BufferedDataTable.TYPE});
     }
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
+        if (!(inSpecs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+            throw new InvalidSettingsException(
+                    "Incompatible input connection. Connect the Salesforce Connector output port.");
+        }
+
         final var inSpec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
         final var outSpec = createSoqlExecutor(inSpec).createOutputSpec();
         return outSpec.map(s -> new PortObjectSpec[]{s}).orElse(null);

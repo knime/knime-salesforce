@@ -63,9 +63,9 @@ import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.port.PortType;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.credentials.base.CredentialPortObject;
 import org.knime.credentials.base.NoSuchCredentialException;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
-import org.knime.salesforce.auth.port.SalesforceConnectionPortObject;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 
 /**
@@ -77,11 +77,16 @@ final class SalesforceSimpleQueryNodeModel extends NodeModel {
     private SalesforceSimpleQueryNodeSettings m_settings;
 
     SalesforceSimpleQueryNodeModel() {
-        super(new PortType[] {SalesforceConnectionPortObject.TYPE}, new PortType[] {BufferedDataTable.TYPE});
+        super(new PortType[] {CredentialPortObject.TYPE}, new PortType[] {BufferedDataTable.TYPE});
     }
 
     @Override
     protected PortObjectSpec[] configure(final PortObjectSpec[] inSpecs) throws InvalidSettingsException {
+        if (!(inSpecs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+            throw new InvalidSettingsException(
+                "Incompatible input connection. Connect the Salesforce Connector output port.");
+        }
+
         CheckUtils.checkSettingNotNull(m_settings, "No configuration set");
         final var inSpec = (SalesforceConnectionPortObjectSpec)inSpecs[0];
         return new PortObjectSpec[]{createSoqlExecutor(inSpec).createOutputSpec().orElse(null)};
