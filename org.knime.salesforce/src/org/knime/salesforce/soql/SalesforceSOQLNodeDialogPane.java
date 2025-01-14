@@ -89,6 +89,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.NotConfigurableException;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.ConvenientComboBoxRenderer;
 import org.knime.core.node.util.FlowVariableListCellRenderer;
@@ -269,7 +270,9 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
     }
 
     @Override
-    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs) {
+    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs)
+        throws NotConfigurableException {
+
         SalesforceSOQLNodeSettings soqlSettings = new SalesforceSOQLNodeSettings().loadSettingsInDialog(settings);
         DefaultListModel<FlowVariable> flowVarModel = (DefaultListModel<FlowVariable>)m_flowVarsList.getModel();
         flowVarModel.removeAllElements();
@@ -282,6 +285,11 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
         DefaultComboBoxModel<SObject> sObjectsComboModel = (DefaultComboBoxModel<SObject>)m_sObjectsCombo.getModel();
         sObjectsComboModel.removeAllElements();
+
+        if (specs[0] != null && !(specs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+            throw new NotConfigurableException(
+                    "Incompatible input connection. Connect the Salesforce Connector output port.");
+        }
         m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
 
         if (m_portSpec != null && m_portSpec.isPresent()) {

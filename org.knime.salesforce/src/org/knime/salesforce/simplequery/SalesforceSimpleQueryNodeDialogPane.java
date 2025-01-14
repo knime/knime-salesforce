@@ -86,6 +86,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
+import org.knime.core.node.NotConfigurableException;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.StringHistoryPanel;
 import org.knime.core.node.util.ViewUtils;
@@ -283,8 +284,15 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     }
 
     @Override
-    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs) {
+    protected void loadSettingsFrom(final NodeSettingsRO settings, final PortObjectSpec[] specs)
+        throws NotConfigurableException {
+
         m_wherePanel.updateHistory();
+
+        if (specs[0] != null && !(specs[0] instanceof SalesforceConnectionPortObjectSpec)) {
+            throw new NotConfigurableException(
+                "Incompatible input connection. Connect the Salesforce Connector output port.");
+        }
         m_portSpec = (SalesforceConnectionPortObjectSpec)specs[0];
 
         SalesforceSimpleQueryNodeSettings ssSetting = new SalesforceSimpleQueryNodeSettings().loadInDialog(settings);
