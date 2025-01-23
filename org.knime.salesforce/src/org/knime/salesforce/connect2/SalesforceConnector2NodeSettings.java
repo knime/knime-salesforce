@@ -69,7 +69,7 @@ import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeSettings;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.After;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.Layout;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.Section;
-import org.knime.core.webui.node.dialog.defaultdialog.persistence.field.Persist;
+import org.knime.core.webui.node.dialog.defaultdialog.persistence.api.Persistor;
 import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
@@ -91,7 +91,7 @@ import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.ValueRefere
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
-import org.knime.credentials.base.oauth.api.nodesettings.TokenCacheKeyPersistor;
+import org.knime.credentials.base.oauth.api.nodesettings.AbstractTokenCacheKeyPersistor;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil.ClientApp;
@@ -248,9 +248,15 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             Clicking on login opens a new browser window/tab which
             allows to interactively log into the service.""")
     @Layout(AuthenticationSection.class)
-    @Persist(optional = true, hidden = true, customPersistor = TokenCacheKeyPersistor.class)
+    @Persistor(LoginCredentialRefPersistor.class)
     @Effect(predicate = AuthType.IsInteractive.class, type = EffectType.SHOW)
     UUID m_loginCredentialRef;
+
+    static final class LoginCredentialRefPersistor extends AbstractTokenCacheKeyPersistor {
+        LoginCredentialRefPersistor() {
+            super("loginCredentialRef");
+        }
+    }
 
     Timeouts getTimeouts() {
         return new Timeouts(m_connectionTimeout, m_readTimeout);
