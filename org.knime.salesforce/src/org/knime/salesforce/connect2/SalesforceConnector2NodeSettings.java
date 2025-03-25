@@ -88,6 +88,7 @@ import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Predicate;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.PredicateProvider;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Reference;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.ValueReference;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.validation.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
@@ -232,13 +233,13 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     @Widget(title = "Connection timeout (seconds)", //
         description = "The HTTP connection timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
-    @NumberInputWidget(min = 0)
+    @NumberInputWidget(validation = IsNonNegativeValidation.class)
     int m_connectionTimeout = 30;
 
     @Widget(title = "Read timeout (seconds)", //
         description = "The HTTP read timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
-    @NumberInputWidget(min = 0)
+    @NumberInputWidget(validation = IsNonNegativeValidation.class)
     int m_readTimeout = 60;
 
     @ButtonWidget(actionHandler = LoginActionHandler.class, //
