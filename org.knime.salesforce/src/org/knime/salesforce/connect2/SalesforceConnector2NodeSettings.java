@@ -233,13 +233,13 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     @Widget(title = "Connection timeout (seconds)", //
         description = "The HTTP connection timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
-    @NumberInputWidget(validation = IsNonNegativeValidation.class)
+    @NumberInputWidget(minValidation = IsNonNegativeValidation.class)
     int m_connectionTimeout = 30;
 
     @Widget(title = "Read timeout (seconds)", //
         description = "The HTTP read timeout used in this node and downstream Salesforce nodes.")
     @Layout(TimeoutsSection.class)
-    @NumberInputWidget(validation = IsNonNegativeValidation.class)
+    @NumberInputWidget(minValidation = IsNonNegativeValidation.class)
     int m_readTimeout = 60;
 
     @ButtonWidget(actionHandler = LoginActionHandler.class, //
