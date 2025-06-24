@@ -71,6 +71,7 @@ import org.knime.core.webui.node.dialog.defaultdialog.layout.Layout;
 import org.knime.core.webui.node.dialog.defaultdialog.layout.Section;
 import org.knime.core.webui.node.dialog.defaultdialog.persistence.api.Persistor;
 import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
+import org.knime.core.webui.node.dialog.defaultdialog.widget.Advanced;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage;
@@ -150,21 +151,24 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     interface UsernamePasswordSection {
     }
 
-    @Section(title = "Salesforce Instance", advanced = true)
+    @Section(title = "Salesforce Instance")
+    @Advanced
     @Effect(predicate = HasNoCredentialPort.class, //
         type = EffectType.SHOW)
     @After(UsernamePasswordSection.class)
     interface SalesforceInstanceSection {
     }
 
-    @Section(title = "Client/App", advanced = true)
+    @Section(title = "Client/App")
+    @Advanced
     @Effect(predicate = HasNoCredentialPort.class, //
         type = EffectType.SHOW)
     @After(SalesforceInstanceSection.class)
     interface AppSection {
     }
 
-    @Section(title = "Timeouts", advanced = true)
+    @Section(title = "Timeouts")
+    @Advanced
     @After(AppSection.class)
     interface TimeoutsSection {
     }
