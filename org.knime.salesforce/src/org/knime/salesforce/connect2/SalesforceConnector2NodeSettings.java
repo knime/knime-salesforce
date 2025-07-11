@@ -65,35 +65,36 @@ import org.knime.core.node.NodeLogger;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.CheckUtils;
-import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeSettings;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.ButtonWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.CancelableActionHandler;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.After;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.Layout;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.Section;
-import org.knime.core.webui.node.dialog.defaultdialog.persistence.api.Persistor;
-import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Advanced;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.MessageType;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.SimpleTextMessageProvider;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.ValueSwitchWidget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Widget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.credentials.CredentialsWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.handler.WidgetHandlerException;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect.EffectType;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Predicate;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.PredicateProvider;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Reference;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.ValueReference;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.validation.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
 import org.knime.credentials.base.oauth.api.nodesettings.AbstractTokenCacheKeyPersistor;
+import org.knime.node.parameters.NodeParameters;
+import org.knime.node.parameters.NodeParametersInput;
+import org.knime.node.parameters.layout.After;
+import org.knime.node.parameters.layout.Layout;
+import org.knime.node.parameters.layout.Section;
+import org.knime.node.parameters.parameter.credentials.Credentials;
+import org.knime.node.parameters.persistence.Persistor;
+import org.knime.node.parameters.widget.Advanced;
+import org.knime.node.parameters.widget.Widget;
+import org.knime.node.parameters.widget.credentials.CredentialsWidget;
+import org.knime.node.parameters.widget.message.TextMessage;
+import org.knime.node.parameters.widget.message.TextMessage.MessageType;
+import org.knime.node.parameters.widget.message.TextMessage.SimpleTextMessageProvider;
+import org.knime.node.parameters.widget.number.NumberInputWidget;
+import org.knime.node.parameters.widget.number.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
+import org.knime.node.parameters.widget.singleselection.Label;
+import org.knime.node.parameters.widget.singleselection.ValueSwitchWidget;
+import org.knime.node.parameters.widget.updates.Effect;
+import org.knime.node.parameters.widget.updates.Predicate;
+import org.knime.node.parameters.widget.updates.PredicateProvider;
+import org.knime.node.parameters.widget.updates.Reference;
+import org.knime.node.parameters.widget.updates.ValueReference;
+import org.knime.node.parameters.widget.updates.Effect.EffectType;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil.ClientApp;
@@ -110,9 +111,9 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
  * @author Jannik Löscher, KNIME GmbH, Konstanz, Germany
  */
 @SuppressWarnings("restriction") // New Node UI is not yet API
-final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
+final class SalesforceConnector2NodeSettings implements NodeParameters {
 
-    private static boolean hasCredentialPort(final DefaultNodeSettingsContext context) {
+    private static boolean hasCredentialPort(final NodeParametersInput context) {
         return Arrays.stream(context.getInPortTypes())
             .anyMatch(inPortType -> CredentialPortObjectSpec.class.equals(inPortType.getPortObjectSpecClass()));
     }
@@ -120,7 +121,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static final class AuthenticationManagedByPortMessage implements SimpleTextMessageProvider {
 
         @Override
-        public boolean showMessage(final DefaultNodeSettingsContext context) {
+        public boolean showMessage(final NodeParametersInput context) {
             return hasCredentialPort(context);
         }
 
@@ -329,7 +330,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static class LoginActionHandler extends CancelableActionHandler<UUID, SalesforceConnector2NodeSettings> {
 
         @Override
-        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final DefaultNodeSettingsContext context)
+        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final NodeParametersInput context)
             throws WidgetHandlerException {
             try {
                 settings.checkPortAndValidate(context.getPortObjectSpecs());
