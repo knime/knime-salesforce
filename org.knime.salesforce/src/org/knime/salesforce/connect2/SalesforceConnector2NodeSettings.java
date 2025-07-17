@@ -65,7 +65,6 @@ import org.knime.core.node.NodeLogger;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.CheckUtils;
-import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeSettings;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.ButtonWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.CancelableActionHandler;
 import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
@@ -75,17 +74,19 @@ import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
 import org.knime.credentials.base.oauth.api.nodesettings.AbstractTokenCacheKeyPersistor;
 import org.knime.node.parameters.Advanced;
+import org.knime.node.parameters.NodeParameters;
+import org.knime.node.parameters.NodeParametersInput;
 import org.knime.node.parameters.Widget;
 import org.knime.node.parameters.layout.After;
 import org.knime.node.parameters.layout.Layout;
 import org.knime.node.parameters.layout.Section;
 import org.knime.node.parameters.persistence.Persistor;
 import org.knime.node.parameters.updates.Effect;
+import org.knime.node.parameters.updates.Effect.EffectType;
 import org.knime.node.parameters.updates.Predicate;
 import org.knime.node.parameters.updates.PredicateProvider;
 import org.knime.node.parameters.updates.Reference;
 import org.knime.node.parameters.updates.ValueReference;
-import org.knime.node.parameters.updates.Effect.EffectType;
 import org.knime.node.parameters.widget.choices.Label;
 import org.knime.node.parameters.widget.choices.ValueSwitchWidget;
 import org.knime.node.parameters.widget.credentials.CredentialsWidget;
@@ -110,9 +111,9 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
  * @author Jannik Löscher, KNIME GmbH, Konstanz, Germany
  */
 @SuppressWarnings("restriction") // New Node UI is not yet API
-final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
+final class SalesforceConnector2NodeSettings implements NodeParameters {
 
-    private static boolean hasCredentialPort(final DefaultNodeSettingsContext context) {
+    private static boolean hasCredentialPort(final NodeParametersInput context) {
         return Arrays.stream(context.getInPortTypes())
             .anyMatch(inPortType -> CredentialPortObjectSpec.class.equals(inPortType.getPortObjectSpecClass()));
     }
@@ -120,7 +121,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static final class AuthenticationManagedByPortMessage implements SimpleTextMessageProvider {
 
         @Override
-        public boolean showMessage(final DefaultNodeSettingsContext context) {
+        public boolean showMessage(final NodeParametersInput context) {
             return hasCredentialPort(context);
         }
 
@@ -329,7 +330,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static class LoginActionHandler extends CancelableActionHandler<UUID, SalesforceConnector2NodeSettings> {
 
         @Override
-        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final DefaultNodeSettingsContext context)
+        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final NodeParametersInput context)
             throws WidgetHandlerException {
             try {
                 settings.checkPortAndValidate(context.getPortObjectSpecs());
