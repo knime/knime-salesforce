@@ -65,35 +65,36 @@ import org.knime.core.node.NodeLogger;
 import org.knime.core.node.port.PortObject;
 import org.knime.core.node.port.PortObjectSpec;
 import org.knime.core.node.util.CheckUtils;
-import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeSettings;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.ButtonWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.internal.button.CancelableActionHandler;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.After;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.Layout;
-import org.knime.core.webui.node.dialog.defaultdialog.layout.Section;
-import org.knime.core.webui.node.dialog.defaultdialog.persistence.api.Persistor;
-import org.knime.core.webui.node.dialog.defaultdialog.setting.credentials.Credentials;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Advanced;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Label;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.NumberInputWidget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.MessageType;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.TextMessage.SimpleTextMessageProvider;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.ValueSwitchWidget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.Widget;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.credentials.CredentialsWidget;
 import org.knime.core.webui.node.dialog.defaultdialog.widget.handler.WidgetHandlerException;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Effect.EffectType;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Predicate;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.PredicateProvider;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.Reference;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.updates.ValueReference;
-import org.knime.core.webui.node.dialog.defaultdialog.widget.validation.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
 import org.knime.credentials.base.CredentialCache;
 import org.knime.credentials.base.CredentialPortObjectSpec;
 import org.knime.credentials.base.oauth.api.AccessTokenCredential;
 import org.knime.credentials.base.oauth.api.nodesettings.AbstractTokenCacheKeyPersistor;
+import org.knime.node.parameters.Advanced;
+import org.knime.node.parameters.NodeParameters;
+import org.knime.node.parameters.NodeParametersInput;
+import org.knime.node.parameters.Widget;
+import org.knime.node.parameters.layout.After;
+import org.knime.node.parameters.layout.Layout;
+import org.knime.node.parameters.layout.Section;
+import org.knime.node.parameters.persistence.Persistor;
+import org.knime.node.parameters.updates.Effect;
+import org.knime.node.parameters.updates.Effect.EffectType;
+import org.knime.node.parameters.updates.EffectPredicate;
+import org.knime.node.parameters.updates.EffectPredicateProvider;
+import org.knime.node.parameters.updates.ParameterReference;
+import org.knime.node.parameters.updates.ValueReference;
+import org.knime.node.parameters.widget.choices.Label;
+import org.knime.node.parameters.widget.choices.ValueSwitchWidget;
+import org.knime.node.parameters.widget.credentials.Credentials;
+import org.knime.node.parameters.widget.credentials.CredentialsWidget;
+import org.knime.node.parameters.widget.message.TextMessage;
+import org.knime.node.parameters.widget.message.TextMessage.MessageType;
+import org.knime.node.parameters.widget.message.TextMessage.SimpleTextMessageProvider;
+import org.knime.node.parameters.widget.number.NumberInputWidget;
+import org.knime.node.parameters.widget.number.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
 import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil;
 import org.knime.salesforce.auth.credential.SalesforceAuthenticationUtil.ClientApp;
@@ -110,9 +111,9 @@ import com.github.scribejava.apis.salesforce.SalesforceToken;
  * @author Jannik Löscher, KNIME GmbH, Konstanz, Germany
  */
 @SuppressWarnings("restriction") // New Node UI is not yet API
-final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
+final class SalesforceConnector2NodeSettings implements NodeParameters {
 
-    private static boolean hasCredentialPort(final DefaultNodeSettingsContext context) {
+    private static boolean hasCredentialPort(final NodeParametersInput context) {
         return Arrays.stream(context.getInPortTypes())
             .anyMatch(inPortType -> CredentialPortObjectSpec.class.equals(inPortType.getPortObjectSpecClass()));
     }
@@ -120,7 +121,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static final class AuthenticationManagedByPortMessage implements SimpleTextMessageProvider {
 
         @Override
-        public boolean showMessage(final DefaultNodeSettingsContext context) {
+        public boolean showMessage(final NodeParametersInput context) {
             return hasCredentialPort(context);
         }
 
@@ -329,10 +330,10 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     static class LoginActionHandler extends CancelableActionHandler<UUID, SalesforceConnector2NodeSettings> {
 
         @Override
-        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final DefaultNodeSettingsContext context)
+        protected UUID invoke(final SalesforceConnector2NodeSettings settings, final NodeParametersInput context)
             throws WidgetHandlerException {
             try {
-                settings.checkPortAndValidate(context.getPortObjectSpecs());
+                settings.checkPortAndValidate(context.getInPortSpecs());
             } catch (InvalidSettingsException e) { // NOSONAR
                 throw new WidgetHandlerException(e.getMessage());
             }
@@ -399,16 +400,16 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
     /**
      * Constant signal to indicate whether the user has added a credential port or not.
      */
-    static final class HasNoCredentialPort implements PredicateProvider {
+    static final class HasNoCredentialPort implements EffectPredicateProvider {
         @Override
-        public Predicate init(final PredicateInitializer i) {
+        public EffectPredicate init(final PredicateInitializer i) {
             // to guide the user to the error we disable the GUI also if the credential
             // input is not of the correct type per se
             return i.getConstant(context -> !hasCredentialPort(context));
         }
     }
 
-    static final class AuthTypeRef implements Reference<AuthType> {
+    static final class AuthTypeRef implements ParameterReference<AuthType> {
     }
 
     enum AuthType {
@@ -418,24 +419,24 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             @Label("Username/Password")
             USERNAME_PASSWORD;
 
-        static final class IsUsernamePasswordAndHasNoCredentialPort implements PredicateProvider {
+        static final class IsUsernamePasswordAndHasNoCredentialPort implements EffectPredicateProvider {
             @Override
-            public Predicate init(final PredicateInitializer i) {
+            public EffectPredicate init(final PredicateInitializer i) {
                 return i.getEnum(AuthTypeRef.class).isOneOf(USERNAME_PASSWORD)
                     .and(i.getPredicate(HasNoCredentialPort.class));
             }
         }
 
-        static final class IsInteractive implements PredicateProvider {
+        static final class IsInteractive implements EffectPredicateProvider {
             @Override
-            public Predicate init(final PredicateInitializer i) {
+            public EffectPredicate init(final PredicateInitializer i) {
                 return i.getEnum(AuthTypeRef.class).isOneOf(INTERACTIVE);
             }
         }
 
-        static final class IsInteractiveAndHasNoCredentialPort implements PredicateProvider {
+        static final class IsInteractiveAndHasNoCredentialPort implements EffectPredicateProvider {
             @Override
-            public Predicate init(final PredicateInitializer i) {
+            public EffectPredicate init(final PredicateInitializer i) {
                 return i.getPredicate(IsInteractive.class).and(i.getPredicate(HasNoCredentialPort.class));
             }
         }
@@ -452,7 +453,7 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             SANDBOX;
     }
 
-    static final class ConnectedAppTypeRef implements Reference<ConnectedAppType> {
+    static final class ConnectedAppTypeRef implements ParameterReference<ConnectedAppType> {
     }
 
     enum ConnectedAppType {
@@ -461,9 +462,9 @@ final class SalesforceConnector2NodeSettings implements DefaultNodeSettings {
             @Label("Custom")
             CUSTOM;
 
-        static final class IsCustom implements PredicateProvider {
+        static final class IsCustom implements EffectPredicateProvider {
             @Override
-            public Predicate init(final PredicateInitializer i) {
+            public EffectPredicate init(final PredicateInitializer i) {
                 if (i.isMissing(ConnectedAppTypeRef.class)) {
                     return i.never();
                 }
