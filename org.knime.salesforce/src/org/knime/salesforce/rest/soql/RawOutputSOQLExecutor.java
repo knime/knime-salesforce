@@ -86,8 +86,8 @@ public class RawOutputSOQLExecutor extends AbstractSOQLExecutor {
     public RawOutputSOQLExecutor(final SalesforceAccessTokenCredential credential, final Timeouts timeouts,
         final SalesforceSOQLNodeSettings settings, final FlowVariableProvider flowVarProvider)
         throws InvalidSettingsException {
-
-        super(credential, timeouts, settings.getSOQLWithFlowVarsReplaced(flowVarProvider));
+        super(credential, timeouts, settings.getSOQLWithFlowVarsReplaced(flowVarProvider),
+            settings.isRetrieveDeletedAndArchived());
         m_settings = settings;
     }
 

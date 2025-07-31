@@ -122,6 +122,8 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
 
     private final JCheckBox m_outputAsCount;
 
+    private final JCheckBox m_retrieveDeletedArchivedCheckbox;
+
     private final SalesforceObjectSchemaCache m_cache;
 
     SalesforceSOQLNodeDialogPane() {
@@ -148,11 +150,11 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         bg.add(m_recordOutputRadio);
         m_recordOutputRadio.doClick();
 
+        m_retrieveDeletedArchivedCheckbox = new JCheckBox("Also retrieve deleted and archived records");
 
         addTab("SOQL Editor", createPanel());
     }
 
-    @SuppressWarnings("unchecked")
     private JPanel createPanel() {
         GridBagConstraints gbc = new GridBagConstraints();
         JPanel leftPanel = new JPanel(new GridBagLayout());
@@ -231,6 +233,8 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         panel.add(ViewUtils.getInFlowLayout(FlowLayout.LEADING, 5, 2, new JLabel("  "), m_rawOutputRadio));
         panel.add(ViewUtils.getInFlowLayout(FlowLayout.LEADING, 5, 2, new JLabel("  "), m_recordOutputRadio,
             new JLabel(" "), m_outputAsCount));
+        panel.add(new JLabel("")); // empty label to fill space
+        panel.add(m_retrieveDeletedArchivedCheckbox);
         return panel;
     }
 
@@ -266,6 +270,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
                 .orElseThrow(() -> new InvalidSettingsException("Invalid output representation"));
         soqlSettings.setOutputRepresentation(outputRepresentation);
         soqlSettings.setOutputAsCount(m_outputAsCount.isSelected());
+        soqlSettings.setRetrieveDeletedAndArchived(m_retrieveDeletedArchivedCheckbox.isSelected());
         soqlSettings.saveSettingsTo(settings);
     }
 
@@ -317,6 +322,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
             .filter(b -> b.getActionCommand().equals(soqlSettings.getOutputRepresentation().name()))//
             .findFirst().ifPresent(AbstractButton::doClick);
         m_outputAsCount.setSelected(soqlSettings.isOutputAsCount());
+        m_retrieveDeletedArchivedCheckbox.setSelected(soqlSettings.isRetrieveDeletedAndArchived());
         m_soqlTextArea.requestFocus();
     }
 

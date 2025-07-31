@@ -87,12 +87,14 @@ final class SalesforceSimpleQueryNodeSettings {
     private static final String CFG_WHERE_CLAUSE = "where";
     private static final String CFG_LIMIT_CLAUSE = "limit";
     private static final String CFG_DISPLAY_TYPE = "display";
+    private static final String CFG_RETRIEVE_DELETED_ARCHIVED = "retrieveDeletedArchived";
 
     private String m_objectName;
     private SalesforceField[] m_objectFields = new SalesforceField[0];
     private Optional<String> m_whereClause;
     private OptionalInt m_limit;
     private DisplayName m_displayName = DisplayName.Label;
+    private boolean m_retrieveDeletedAndArchived;
 
     String getObjectName() {
         return m_objectName;
@@ -134,6 +136,14 @@ final class SalesforceSimpleQueryNodeSettings {
         m_displayName = Objects.requireNonNull(displayName);
     }
 
+    boolean isRetrieveDeletedAndArchived() {
+        return m_retrieveDeletedAndArchived;
+    }
+
+    void setRetrieveDeletedAndArchived(final boolean value) {
+        m_retrieveDeletedAndArchived = value;
+    }
+
     SalesforceSimpleQueryNodeSettings loadInDialog(final NodeSettingsRO settings) {
         m_objectName = settings.getString(CFG_OBJECT_NAME, null);
         NodeSettingsRO fields;
@@ -154,6 +164,7 @@ final class SalesforceSimpleQueryNodeSettings {
         setWhereClause(settings.getString(CFG_WHERE_CLAUSE, null));
         setLimit(settings.getInt(CFG_LIMIT_CLAUSE, -1));
         setDisplayName(DisplayName.of(settings.getString(CFG_DISPLAY_TYPE, null)).orElse(DisplayName.Label));
+        setRetrieveDeletedAndArchived(settings.getBoolean(CFG_RETRIEVE_DELETED_ARCHIVED, false));
         return this;
     }
 
@@ -171,6 +182,8 @@ final class SalesforceSimpleQueryNodeSettings {
         setLimit(settings.getInt(CFG_LIMIT_CLAUSE));
         setDisplayName(DisplayName.of(settings.getString(CFG_DISPLAY_TYPE, null))
             .orElseThrow(() -> new InvalidSettingsException("Na valid display option")));
+        // added in 5.7
+        m_retrieveDeletedAndArchived = settings.getBoolean(CFG_RETRIEVE_DELETED_ARCHIVED, false);
         return this;
     }
 
@@ -184,6 +197,7 @@ final class SalesforceSimpleQueryNodeSettings {
         settings.addString(CFG_WHERE_CLAUSE, m_whereClause.orElse(null));
         settings.addInt(CFG_LIMIT_CLAUSE, m_limit.orElse(-1));
         settings.addString(CFG_DISPLAY_TYPE, m_displayName.name());
+        settings.addBoolean(CFG_RETRIEVE_DELETED_ARCHIVED, m_retrieveDeletedAndArchived);
     }
 
     static SalesforceField readSalesforceFieldFromSettings(final NodeSettingsRO fields, final String key)
@@ -206,5 +220,4 @@ final class SalesforceSimpleQueryNodeSettings {
         return String.format("Object: \"%s\", Fields: [%s]", m_objectName,
             Arrays.stream(m_objectFields).map(f -> "\"" + f.getName() + "\"").collect(Collectors.joining(", ")));
     }
-
 }

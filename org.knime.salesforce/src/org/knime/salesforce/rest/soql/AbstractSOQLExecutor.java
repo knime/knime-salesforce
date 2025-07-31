@@ -103,15 +103,24 @@ public abstract class AbstractSOQLExecutor {
     private Optional<String> m_nextRecordsUrlString = Optional.empty();
 
     /**
+     * If true, use Salesforce REST API queryAll endpoint to include deleted and archived records.
+     * See https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_queryall.htm
+     * Added as part of AP-24773.
+     */
+    private boolean m_isRetrieveDeletedAndArchived;
+
+    /**
      * @param credential
      * @param timeouts
      * @param soql
+     * @param isRetrieveDeletedAndArchived
      */
     protected AbstractSOQLExecutor(final SalesforceAccessTokenCredential credential, final Timeouts timeouts,
-        final String soql) {
+        final String soql, final boolean isRetrieveDeletedAndArchived) {
         m_credential = CheckUtils.checkArgumentNotNull(credential);
         m_timeouts = CheckUtils.checkArgumentNotNull(timeouts);
         m_soql = CheckUtils.checkArgumentNotNull(soql);
+        m_isRetrieveDeletedAndArchived = isRetrieveDeletedAndArchived;
     }
 
     /**
@@ -139,10 +148,10 @@ public abstract class AbstractSOQLExecutor {
      */
     protected JsonStructure execute() throws SalesforceResponseException {
         var uri = UriBuilder.fromUri(m_credential.getSalesforceInstanceUrl()) //
-                .path(SalesforceRESTUtil.QUERY_PATH) //
-                .queryParam("q", "{soql}") // need to use templates for proper encoding, see AP-17072 and
-                .resolveTemplate("soql", m_soql) // https://issues.apache.org/jira/browse/CXF-8553
-                .build();
+            .path(m_isRetrieveDeletedAndArchived ? SalesforceRESTUtil.QUERY_ALL_PATH : SalesforceRESTUtil.QUERY_PATH) //
+            .queryParam("q", "{soql}") // need to use templates for proper encoding, see AP-17072 and
+            .resolveTemplate("soql", m_soql) // https://issues.apache.org/jira/browse/CXF-8553
+            .build();
         var uriAsString = uri.toString();
         LOGGER.debugWithFormat("Executing SOQL - %s",uriAsString,
             StringUtils.substring(uriAsString, 0, StringUtils.indexOf(uriAsString, "q=") + 20) + "...");

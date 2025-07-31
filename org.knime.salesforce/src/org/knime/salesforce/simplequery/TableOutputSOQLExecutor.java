@@ -93,10 +93,11 @@ public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
      * @param cred
      * @param timeouts
      * @param settings
+     * @param isRetrieveDeletedAndArchived
      */
     public TableOutputSOQLExecutor(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
-        final SalesforceSimpleQueryNodeSettings settings) {
-        super(cred, timeouts, createSOQL(settings));
+        final SalesforceSimpleQueryNodeSettings settings, final boolean isRetrieveDeletedAndArchived) {
+        super(cred, timeouts, createSOQL(settings), isRetrieveDeletedAndArchived);
         m_settings = settings;
     }
 

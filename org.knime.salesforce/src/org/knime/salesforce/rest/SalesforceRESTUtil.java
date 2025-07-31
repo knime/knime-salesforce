@@ -102,6 +102,9 @@ public final class SalesforceRESTUtil {
     /** SOQL path. */
     public static final String QUERY_PATH = PREFIX_PATH + "query/";
 
+    /** QueryAll path to include archived and deleted records. */
+    public static final String QUERY_ALL_PATH = PREFIX_PATH + "queryAll/";
+
     /** SObjects path (object and field description). */
     public static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
 

@@ -108,6 +108,8 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
     private final StringHistoryPanel m_wherePanel;
     private final JCheckBox m_limitChecker;
     private final JSpinner m_limitSpinner;
+    private final JCheckBox m_retrieveDeletedArchivedCheckbox;
+
     private final JRadioButton m_useTechNamesInRendererButton;
     private final JRadioButton m_useLabelsInRendererButton;
 
@@ -158,6 +160,8 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
                 }
             }
         });
+
+        m_retrieveDeletedArchivedCheckbox = new JCheckBox("Also retrieve deleted and archived records");
 
         m_wherePanel = new StringHistoryPanel("salesforce_query_where");
 
@@ -236,6 +240,11 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
         gbc.gridx += 1;
         gbc.weightx = 1.0;
         panel.add(m_limitSpinner, gbc);
+
+        gbc.gridy += 1;
+        gbc.gridx = 0;
+        gbc.gridwidth = 2;
+        panel.add(m_retrieveDeletedArchivedCheckbox, gbc);
         return panel;
     }
 
@@ -342,6 +351,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
             m_limitChecker.doClick();
         }
         m_limitSpinner.setValue(limit.orElse(100));
+        m_retrieveDeletedArchivedCheckbox.setSelected(ssSetting.isRetrieveDeletedAndArchived());
     }
 
     @Override
@@ -351,6 +361,7 @@ final class SalesforceSimpleQueryNodeDialogPane extends NodeDialogPane {
         ssSettings.setObjectFields(m_salesforceFieldFilterPanel.getIncludeList().toArray(new SalesforceField[0]));
         ssSettings.setWhereClause(m_wherePanel.getSelectedString());
         ssSettings.setLimit(m_limitChecker.isSelected() ? (int)m_limitSpinner.getValue() : -1);
+        ssSettings.setRetrieveDeletedAndArchived(m_retrieveDeletedArchivedCheckbox.isSelected());
         ssSettings
             .setDisplayName(m_useLabelsInRendererButton.isSelected() ? DisplayName.Label : DisplayName.TechnialName);
         ssSettings.save(settings);
