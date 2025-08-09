@@ -54,7 +54,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
 
-import org.apache.commons.lang3.Functions;
+import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.JsonUtil;
@@ -151,7 +151,7 @@ public final class SalesforceRESTUtil {
      */
     public static <R> R doGet(final URI uri, final SalesforceAccessTokenCredential credential, //
         final boolean refreshTokenIff,
-        final Functions.FailableFunction<Response, R, SalesforceResponseException> callback, //
+        final FailableFunction<Response, R, SalesforceResponseException> callback, //
         final Timeouts timeouts) throws SalesforceResponseException {
 
         final WebClient client = getClient(uri, credential, timeouts);
