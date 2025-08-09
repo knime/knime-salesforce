@@ -2,7 +2,7 @@
 <feature
       id="org.knime.features.salesforce"
       label="KNIME Salesforce Integration"
-      version="5.6.0.qualifier"
+      version="5.7.0.qualifier"
       provider-name="KNIME AG, Zurich, Switzerland"
       plugin="org.knime.salesforce">
 
