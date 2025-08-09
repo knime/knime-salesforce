@@ -97,7 +97,7 @@ public final class SalesforceRESTUtil {
      * The base path for all API calls. Version 48 was the latest available on production in July '20.
      */
     // get latest version by browsing, e.g. https://knime.my.salesforce.com/services/data/
-    public static final String PREFIX_PATH = "/services/data/v48.0/"; // NOSONAR
+    private static final String PREFIX_PATH = "/services/data/v48.0/"; // NOSONAR
 
     /** SOQL path. */
     public static final String QUERY_PATH = PREFIX_PATH + "query/";
@@ -106,10 +106,10 @@ public final class SalesforceRESTUtil {
     public static final String QUERY_ALL_PATH = PREFIX_PATH + "queryAll/";
 
     /** SObjects path (object and field description). */
-    public static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
+    private static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
 
     /** Field description path. */
-    public static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
+    private static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
 
     private SalesforceRESTUtil() {
     }

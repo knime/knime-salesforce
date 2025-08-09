@@ -80,7 +80,7 @@ public final class ErrorResponse {
      *
      * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
      */
-    public static class Error {
+    private static class Error {
         private final String code;
 
         private final String message;
@@ -133,7 +133,7 @@ public final class ErrorResponse {
      *
      * @author Benjamin Wilhelm, KNIME GmbH, Konstanz, Germany
      */
-    public static class Detail {
+    private static class Detail {
         private final String message;
 
         private final String target;

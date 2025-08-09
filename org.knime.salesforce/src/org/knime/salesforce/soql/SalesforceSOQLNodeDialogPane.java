@@ -326,7 +326,7 @@ final class SalesforceSOQLNodeDialogPane extends NodeDialogPane {
         m_soqlTextArea.requestFocus();
     }
 
-    void onNewSalesforceObjectSelected(final SObject selected) {
+    private void onNewSalesforceObjectSelected(final SObject selected) {
         if (!Arrays.asList(FAILED_CONTENT, FETCHING_CONTENT).contains(selected)) {
             m_cache.cancelFetchFieldsSwingWorker();
             Field[] fields = m_cache.getsObjectFieldCache().get(selected);

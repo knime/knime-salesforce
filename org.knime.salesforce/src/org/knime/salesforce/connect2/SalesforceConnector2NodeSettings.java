@@ -276,7 +276,7 @@ final class SalesforceConnector2NodeSettings implements NodeParameters {
         };
     }
 
-    boolean isSandBox() {
+    private boolean isSandBox() {
         return m_salesforceInstanceType == InstanceType.SANDBOX;
     }
 
@@ -313,7 +313,7 @@ final class SalesforceConnector2NodeSettings implements NodeParameters {
         return false;
     }
 
-    static boolean credentialPortConnected(final PortObjectSpec[] specs) throws InvalidSettingsException {
+    private static boolean credentialPortConnected(final PortObjectSpec[] specs) throws InvalidSettingsException {
         for (var i = 0; i < specs.length; i++) {
             if (specs[i] instanceof CredentialPortObjectSpec spec) {
                 final var optCredType = spec.getCredentialType();
