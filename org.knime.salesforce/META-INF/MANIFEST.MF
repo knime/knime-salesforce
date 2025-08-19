@@ -7,7 +7,7 @@ Bundle-ClassPath: .
 Bundle-Vendor: KNIME AG, Zurich, Switzerland
 Require-Bundle: org.knime.base;bundle-version="[5.6.0,6.0.0)",
  org.knime.json;bundle-version="[5.6.0,6.0.0)",
- org.knime.time;bundle-version="[5.6.0,6.0.0)",
+ org.knime.time;bundle-version="[5.7.0,6.0.0)",
  org.apache.commons.lang3;bundle-version="[3.14.0,4.0.0)",
  com.google.guava;bundle-version="[33.0.0,34.0.0]",
  com.google.guava.failureaccess;bundle-version="[1.0.2,2.0.0)",
@@ -32,7 +32,7 @@ Require-Bundle: org.knime.base;bundle-version="[5.6.0,6.0.0)",
  org.knime.rsyntaxtextarea;bundle-version="[5.6.0,6.0.0)",
  com.github.scribejava.apis;bundle-version="[8.0.0,9.0.0)",
  com.github.scribejava.core;bundle-version="[8.0.0,9.0.0)",
- org.knime.core.ui;bundle-version="[5.6.0,6.0.0)",
+ org.knime.core.ui;bundle-version="[5.7.0,6.0.0)",
  org.knime.credentials.base;bundle-version="[5.6.0,6.0.0)",
  org.knime.credentials.base.oauth;bundle-version="[5.6.0,6.0.0)"
 Bundle-RequiredExecutionEnvironment: JavaSE-17
