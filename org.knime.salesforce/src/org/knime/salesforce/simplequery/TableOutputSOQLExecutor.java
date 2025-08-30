@@ -84,7 +84,7 @@ import jakarta.json.JsonValue.ValueType;
  *
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  */
-public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
+final class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
 
 
     private final SalesforceSimpleQueryNodeSettings m_settings;
@@ -93,14 +93,15 @@ public class TableOutputSOQLExecutor extends AbstractSOQLExecutor {
      * @param cred
      * @param timeouts
      * @param settings
+     * @param isRetrieveDeletedAndArchived
      */
-    public TableOutputSOQLExecutor(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
-        final SalesforceSimpleQueryNodeSettings settings) {
-        super(cred, timeouts, createSOQL(settings));
+    TableOutputSOQLExecutor(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
+        final SalesforceSimpleQueryNodeSettings settings, final boolean isRetrieveDeletedAndArchived) {
+        super(cred, timeouts, createSOQL(settings), isRetrieveDeletedAndArchived);
         m_settings = settings;
     }
 
-    private static final String createSOQL(final SalesforceSimpleQueryNodeSettings settings) {
+    private static String createSOQL(final SalesforceSimpleQueryNodeSettings settings) {
         StringBuilder soqlBuilder = new StringBuilder();
         soqlBuilder.append("SELECT ");
         soqlBuilder.append(Arrays.stream(settings.getObjectFields()) //

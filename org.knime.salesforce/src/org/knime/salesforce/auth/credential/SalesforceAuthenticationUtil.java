@@ -259,7 +259,7 @@ public final class SalesforceAuthenticationUtil {
      * @param clientApp client app id and secret to use
      * @return a newly acquired {@link AccessTokenCredential}
      */
-    public static AccessTokenCredential refreshToken(
+    private static AccessTokenCredential refreshToken(
         final String refreshToken, final boolean isSandbox, final ClientApp clientApp) {
 
         final var api = isSandbox ? SalesforceApi.sandbox() : SalesforceApi.instance();

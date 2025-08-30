@@ -106,7 +106,8 @@ final class SalesforceSimpleQueryNodeModel extends NodeModel {
         try {
             final var credential = inSpec.resolveCredential(SalesforceAccessTokenCredential.class);
             final var timeouts = inSpec.getTimeouts();
-            return new TableOutputSOQLExecutor(credential, timeouts, m_settings);
+            return new TableOutputSOQLExecutor(credential, timeouts, m_settings,
+                m_settings.isRetrieveDeletedAndArchived());
         } catch (NoSuchCredentialException e) {
             throw new InvalidSettingsException(e.getMessage(), e);
         }

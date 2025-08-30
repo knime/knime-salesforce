@@ -54,7 +54,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
 
-import org.apache.commons.lang3.Functions;
+import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.JsonUtil;
@@ -97,16 +97,19 @@ public final class SalesforceRESTUtil {
      * The base path for all API calls. Version 48 was the latest available on production in July '20.
      */
     // get latest version by browsing, e.g. https://knime.my.salesforce.com/services/data/
-    public static final String PREFIX_PATH = "/services/data/v48.0/"; // NOSONAR
+    private static final String PREFIX_PATH = "/services/data/v48.0/"; // NOSONAR
 
     /** SOQL path. */
     public static final String QUERY_PATH = PREFIX_PATH + "query/";
 
+    /** QueryAll path to include archived and deleted records. */
+    public static final String QUERY_ALL_PATH = PREFIX_PATH + "queryAll/";
+
     /** SObjects path (object and field description). */
-    public static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
+    private static final String SOBJECTS_PATH = PREFIX_PATH + "sobjects/";
 
     /** Field description path. */
-    public static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
+    private static final String SOBJECT_FIELDS_PATH = SOBJECTS_PATH + "{sobjectname}/describe";
 
     private SalesforceRESTUtil() {
     }
@@ -148,7 +151,7 @@ public final class SalesforceRESTUtil {
      */
     public static <R> R doGet(final URI uri, final SalesforceAccessTokenCredential credential, //
         final boolean refreshTokenIff,
-        final Functions.FailableFunction<Response, R, SalesforceResponseException> callback, //
+        final FailableFunction<Response, R, SalesforceResponseException> callback, //
         final Timeouts timeouts) throws SalesforceResponseException {
 
         final WebClient client = getClient(uri, credential, timeouts);

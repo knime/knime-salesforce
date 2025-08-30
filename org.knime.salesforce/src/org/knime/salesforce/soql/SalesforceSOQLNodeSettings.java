@@ -106,7 +106,8 @@ public final class SalesforceSOQLNodeSettings {
     private String m_soql = "Select Id, Name from Account LIMIT 10";
     private String m_outputColumnName = "json";
     private SOQLOutputRepresentation m_outputRepresentation = SOQLOutputRepresentation.RAW;
-    private boolean m_isOutputACounter = false;
+    private boolean m_isOutputACounter;
+    private boolean m_retrieveDeletedAndArchived;
 
     /**
      * @return the soql
@@ -179,12 +180,27 @@ public final class SalesforceSOQLNodeSettings {
         m_outputRepresentation = CheckUtils.checkSettingNotNull(outputRepresentation, "Must not be null");
     }
 
+    /**
+     * @return the retrieveDeletedAndArchived flag
+     */
+    public boolean isRetrieveDeletedAndArchived() {
+        return m_retrieveDeletedAndArchived;
+    }
+
+    /**
+     * @param retrieveDeletedAndArchived the retrieveDeletedAndArchived to set
+     */
+    void setRetrieveDeletedAndArchived(final boolean retrieveDeletedAndArchived) {
+        m_retrieveDeletedAndArchived = retrieveDeletedAndArchived;
+    }
+
     void saveSettingsTo(final NodeSettingsWO settings) {
         if (StringUtils.isNotEmpty(m_soql)) {
             settings.addString("SOQL", m_soql);
             settings.addString("outputColumnName", m_outputColumnName);
             settings.addString("outputRepresentation", m_outputRepresentation.name());
             settings.addBoolean("outputAsCount", m_isOutputACounter);
+            settings.addBoolean("retrieveDeletedAndArchived", m_retrieveDeletedAndArchived);
         }
     }
 
@@ -197,6 +213,7 @@ public final class SalesforceSOQLNodeSettings {
         m_outputRepresentation = SOQLOutputRepresentation.from(outputRepresenationS)
             .orElseThrow(() -> new InvalidSettingsException("Invalid Output Represenation: " + outputRepresenationS));
         m_isOutputACounter = settings.getBoolean("outputAsCount");
+        m_retrieveDeletedAndArchived = settings.getBoolean("retrieveDeletedAndArchived", false); // new in 5.7, AP-24773
         return this;
     }
 
@@ -207,7 +224,7 @@ public final class SalesforceSOQLNodeSettings {
         m_outputRepresentation =
             SOQLOutputRepresentation.from(outputRepresenationS).orElse(SOQLOutputRepresentation.RAW);
         m_isOutputACounter = settings.getBoolean("outputAsCount", false);
+        m_retrieveDeletedAndArchived = settings.getBoolean("retrieveDeletedAndArchived", false);
         return this;
     }
-
 }

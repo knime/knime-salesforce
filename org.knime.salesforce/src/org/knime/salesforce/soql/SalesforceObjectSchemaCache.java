@@ -80,7 +80,6 @@ public final class SalesforceObjectSchemaCache {
             SObject.of("Retrieving content from salesforce.com", "Fetching Content...");
     public static final SObject FAILED_CONTENT =
             SObject.of("Error reading from salesforce.com, check log files for details", "<Failed to fetch list>");
-    public static final SObject PROTOTYPE_LENGTH_CONTENT = SObject.of("", "Account Account Account");
 
     public static final Field FETCHING_FIELD = Field.of("do_not_use", "Fetching fields...", "string");
 
@@ -134,7 +133,7 @@ public final class SalesforceObjectSchemaCache {
         m_fetchFieldsSwingWorker = null;
     }
 
-    public void cancelFetchSObjectsSwingWorker() {
+    private void cancelFetchSObjectsSwingWorker() {
         if (m_fetchSObjectsSwingWorker != null && !m_fetchSObjectsSwingWorker.isDone()) {
             m_fetchSObjectsSwingWorker.cancel(true);
         }
@@ -154,14 +153,14 @@ public final class SalesforceObjectSchemaCache {
         return Collections.unmodifiableMap(m_sObjectFieldCache);
     }
 
-    class FetchFieldsSwingWorker extends SwingWorkerWithContext<Field[], Void> {
+    private final class FetchFieldsSwingWorker extends SwingWorkerWithContext<Field[], Void> {
 
         private final SalesforceAccessTokenCredential m_credential;
         private final SObject m_sObject;
         private final Consumer<SObject> m_afterCompletionConsumer;
         private final Timeouts m_timeouts;
 
-        FetchFieldsSwingWorker(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
+        private FetchFieldsSwingWorker(final SalesforceAccessTokenCredential cred, final Timeouts timeouts,
             final SObject sObject, final Consumer<SObject> afterCompletionConsumer) {
             m_credential = cred;
             m_timeouts = timeouts;

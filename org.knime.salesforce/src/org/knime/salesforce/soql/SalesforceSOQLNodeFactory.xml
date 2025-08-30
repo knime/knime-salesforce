@@ -38,6 +38,10 @@
 			<i>count()</i> this array will be empty so set the respective checkbox to only read out the 
 			<i>totalLimit</i> value.
 		</option>
+		<option name="Also retrieve deleted and archived records">
+			When selected, the node will use Salesforce's <a href="https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_queryall.htm">
+			queryAll</a> endpoint to include deleted and archived records in the results.
+		</option>
 	</fullDescription>
 	<ports>
 		<inPort index="0" name="Authentication">
