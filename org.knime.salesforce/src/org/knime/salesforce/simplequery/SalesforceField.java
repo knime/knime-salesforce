@@ -54,6 +54,9 @@ import java.util.Optional;
 import org.knime.core.node.NodeLogger;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 final class SalesforceField {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceField.class);
@@ -62,20 +65,26 @@ final class SalesforceField {
     private final String m_label;
     private final SalesforceFieldType m_type;
 
-    SalesforceField(final String name, final String label, final SalesforceFieldType type) {
+    @JsonCreator
+    SalesforceField(@JsonProperty("name") final String name, //
+        @JsonProperty("label") final String label, //
+        @JsonProperty("type") final SalesforceFieldType type) {
         m_name = name;
         m_label = label;
         m_type = type;
     }
 
+    @JsonProperty("name")
     String getName() {
         return m_name;
     }
 
+    @JsonProperty("label")
     String getLabel() {
         return m_label;
     }
 
+    @JsonProperty("type")
     SalesforceFieldType getType() {
         return m_type;
     }

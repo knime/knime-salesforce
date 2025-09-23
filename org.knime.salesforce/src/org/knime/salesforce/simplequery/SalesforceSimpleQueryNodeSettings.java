@@ -200,7 +200,7 @@ final class SalesforceSimpleQueryNodeSettings {
         settings.addBoolean(CFG_RETRIEVE_DELETED_ARCHIVED, m_retrieveDeletedAndArchived);
     }
 
-    private static SalesforceField readSalesforceFieldFromSettings(final NodeSettingsRO fields, final String key)
+    static SalesforceField readSalesforceFieldFromSettings(final NodeSettingsRO fields, final String key)
         throws InvalidSettingsException {
         NodeSettingsRO field = fields.getNodeSettings(key);
         String fieldName = field.getString(CFG_FIELD_NAME);
@@ -209,7 +209,7 @@ final class SalesforceSimpleQueryNodeSettings {
         return new SalesforceField(fieldName, fieldLabel, SalesforceFieldType.readType(type));
     }
 
-    private static void writeSalesforceFieldToSettings(final NodeSettingsWO settings, final SalesforceField field) {
+    static void writeSalesforceFieldToSettings(final NodeSettingsWO settings, final SalesforceField field) {
         settings.addString(CFG_FIELD_NAME, field.getName());
         settings.addString(CFG_FIELD_LABEL, field.getLabel());
         settings.addString(CFG_FIELD_TYPE, field.getType().name());

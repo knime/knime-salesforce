@@ -51,12 +51,30 @@ package org.knime.salesforce.simplequery;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeFactory;
 import org.knime.core.node.NodeView;
+import org.knime.core.webui.node.dialog.NodeDialog;
+import org.knime.core.webui.node.dialog.NodeDialogFactory;
+import org.knime.core.webui.node.dialog.NodeDialogManager;
+import org.knime.core.webui.node.dialog.SettingsType;
+import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeDialog;
+import org.knime.core.webui.node.dialog.defaultdialog.DefaultKaiNodeInterface;
+import org.knime.core.node.NodeFactory.NodeType;
+import org.knime.core.webui.node.dialog.kai.KaiNodeInterface;
+import org.knime.core.webui.node.dialog.kai.KaiNodeInterfaceFactory;
+import org.knime.core.node.NodeDescription;
+import org.knime.node.impl.description.DefaultNodeDescriptionUtil;
+import java.util.Map;
+import org.knime.node.impl.description.PortDescription;
+import java.util.List;
+import static org.knime.node.impl.description.PortDescription.fixedPort;
 
 /**
  *
  * @author wiswedel
+ * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
+ * @author AI Migration Pipeline v1.1
  */
-public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<SalesforceSimpleQueryNodeModel> {
+@SuppressWarnings("restriction")
+public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<SalesforceSimpleQueryNodeModel> implements NodeDialogFactory, KaiNodeInterfaceFactory {
 
     @Override
     public SalesforceSimpleQueryNodeModel createNodeModel() {
@@ -77,10 +95,60 @@ public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<Salesfor
     protected boolean hasDialog() {
         return true;
     }
+    private static final String NODE_NAME = "Salesforce Simple Query";
+    private static final String NODE_ICON = "./salesforce.png";
+    private static final String SHORT_DESCRIPTION = """
+            Read fields from a Salesforce object
+            """;
+    private static final String FULL_DESCRIPTION = """
+            Read fields from a Salesforce object. In the configuration dialog select the object type (i.e. a table
+                in Salesforce such Account) and the corresponding object fields (columns, such as Account Name); the
+                data is returned in a KNIME table at the output. An optional WHERE and LIMIT statement can be specified
+                to narrow the search result.
+            """;
+    private static final List<PortDescription> INPUT_PORTS = List.of(
+            fixedPort("Authentication", """
+                Salesforce Authentication Object
+                """)
+    );
+    private static final List<PortDescription> OUTPUT_PORTS = List.of(
+            fixedPort("Salesforce Result Table", """
+                A table containing the selected fields. Column names are derived from the field labels.
+                """)
+    );
 
     @Override
-    protected NodeDialogPane createNodeDialogPane() {
-        return new SalesforceSimpleQueryNodeDialogPane();
+    public NodeDialogPane createNodeDialogPane() {
+        return NodeDialogManager.createLegacyFlowVariableNodeDialog(createNodeDialog());
     }
+
+    @Override
+    public NodeDialog createNodeDialog() {
+        return new DefaultNodeDialog(SettingsType.MODEL, SalesforceSimpleQueryNodeParameters.class);
+    }
+
+    @Override
+    public NodeDescription createNodeDescription() {
+        return DefaultNodeDescriptionUtil.createNodeDescription(
+            NODE_NAME,
+            NODE_ICON,
+            INPUT_PORTS,
+            OUTPUT_PORTS,
+            SHORT_DESCRIPTION,
+            FULL_DESCRIPTION,
+            List.of(),
+            SalesforceSimpleQueryNodeParameters.class,
+            null,
+            NodeType.Manipulator,
+            List.of(),
+            null
+        );
+    }
+
+    @Override
+    public KaiNodeInterface createKaiNodeInterface() {
+        return new DefaultKaiNodeInterface(Map.of(SettingsType.MODEL, SalesforceSimpleQueryNodeParameters.class));
+    }
+
 
 }
