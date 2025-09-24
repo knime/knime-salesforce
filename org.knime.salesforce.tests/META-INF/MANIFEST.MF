@@ -5,7 +5,7 @@ Bundle-SymbolicName: org.knime.salesforce.tests;singleton:=true
 Bundle-Version: 5.8.0.qualifier
 Bundle-ClassPath: .
 Bundle-Vendor: KNIME AG, Zurich, Switzerland
-Fragment-Host: org.knime.salesforce;bundle-version="5.7.0"
+Fragment-Host: org.knime.salesforce;bundle-version="5.8.0"
 Require-Bundle: junit-jupiter-api;bundle-version="[5.10.2,6.0.0)",
  org.knime.core.ui.testing;bundle-version="[5.7.0,6.0.0)"
 Bundle-RequiredExecutionEnvironment: JavaSE-17
