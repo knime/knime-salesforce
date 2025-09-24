@@ -1,0 +1,207 @@
+{
+  "data" : {
+    "model" : {
+      "displayName" : "LABEL",
+      "sObjectName" : "",
+      "fieldNames" : [ ],
+      "salesforceFields" : [ ],
+      "whereClause" : "",
+      "limit" : null,
+      "retrieveDeletedAndArchived" : false
+    }
+  },
+  "schema" : {
+    "type" : "object",
+    "properties" : {
+      "model" : {
+        "type" : "object",
+        "properties" : {
+          "displayName" : {
+            "oneOf" : [ {
+              "const" : "LABEL",
+              "title" : "Labels"
+            }, {
+              "const" : "TECHNICAL_NAME",
+              "title" : "Technical Names"
+            } ],
+            "title" : "Names based on",
+            "description" : "Determines whether the column names in the output table are derived from the Salesforce field names or labels. Labels are human readable and also used in the Salesforce user interface, e.g. AI Record Insight ID. Field names are names used in the API, e.g. AiRecordInsightId. Most standard fields use the same name as the label. Custom fields will have the '__c' suffix. The option also controls how fields and objects are displayed in the configuration dialog.",
+            "default" : "LABEL"
+          },
+          "fieldNames" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Selected Fields",
+            "description" : "The fields defined for the selected object. Move the fields that should be retrieved into the 'Include' list. The field's type is mapped to a native KNIME type (string, int, double, boolean, date &amp; time, ...), whereby some types may not be supported (for instance Salesforce's anyType). Fields with such unsupported type are hidden in the configuration dialog.",
+            "default" : [ ]
+          },
+          "limit" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "title" : "LIMIT result set",
+            "description" : "An optional integer to constraint the result set to a maximum number as specified.",
+            "default" : null
+          },
+          "retrieveDeletedAndArchived" : {
+            "type" : "boolean",
+            "title" : "Also retrieve deleted and archived records",
+            "description" : "When selected, the node will use Salesforce's queryAll endpoint to include deleted and archived records in the results.",
+            "default" : false
+          },
+          "sObjectName" : {
+            "type" : "string",
+            "title" : "Salesforce Object",
+            "description" : "The objects as available in Salesforce. The list is queried when the dialog is opened. The list only contains objects, which are queryable (a property set in Salesforce).",
+            "default" : ""
+          },
+          "salesforceFields" : {
+            "type" : "array",
+            "items" : {
+              "type" : "object"
+            },
+            "default" : [ ]
+          },
+          "warningMessage" : {
+            "type" : "object"
+          },
+          "whereClause" : {
+            "type" : "string",
+            "title" : "WHERE clause",
+            "description" : "An optional WHERE clause to filter the result set. Examples are Name LIKE 'A%' CreatedDate > 2011-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2011 (find some examples in the Salesforce online documentation).",
+            "default" : ""
+          }
+        }
+      }
+    }
+  },
+  "ui_schema" : {
+    "elements" : [ {
+      "type" : "Control",
+      "id" : "#/properties/model/properties/warningMessage",
+      "options" : {
+        "format" : "textMessage"
+      },
+      "providedOptions" : [ "message" ]
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/displayName",
+      "options" : {
+        "format" : "valueSwitch"
+      }
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/sObjectName",
+      "options" : {
+        "format" : "dropDown"
+      },
+      "providedOptions" : [ "possibleValues" ]
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/fieldNames",
+      "options" : {
+        "format" : "twinList"
+      },
+      "providedOptions" : [ "possibleValues" ]
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/whereClause",
+      "options" : {
+        "rows" : 4,
+        "format" : "textArea"
+      }
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/limit",
+      "options" : {
+        "validation" : {
+          "max" : {
+            "errorMessage" : "The value must not exceed 2147483647.",
+            "parameters" : {
+              "isExclusive" : false,
+              "max" : 2.147483647E9
+            }
+          },
+          "min" : {
+            "errorMessage" : "The value must be at least 0.",
+            "parameters" : {
+              "isExclusive" : false,
+              "min" : 0.0
+            }
+          }
+        },
+        "hideOnNull" : true,
+        "default" : 0
+      }
+    }, {
+      "type" : "Control",
+      "scope" : "#/properties/model/properties/retrieveDeletedAndArchived",
+      "options" : {
+        "format" : "checkbox"
+      }
+    } ]
+  },
+  "persist" : {
+    "type" : "object",
+    "properties" : {
+      "model" : {
+        "type" : "object",
+        "properties" : {
+          "warningMessage" : { },
+          "displayName" : {
+            "configPaths" : [ [ "display" ] ]
+          },
+          "sObjectName" : {
+            "configPaths" : [ [ "objectName" ] ]
+          },
+          "fieldNames" : {
+            "configPaths" : [ ]
+          },
+          "salesforceFields" : {
+            "configPaths" : [ ]
+          },
+          "whereClause" : {
+            "configPaths" : [ [ "where" ] ]
+          },
+          "limit" : {
+            "configPaths" : [ [ "limit" ] ]
+          },
+          "retrieveDeletedAndArchived" : {
+            "configPaths" : [ [ "retrieveDeletedArchived" ] ]
+          }
+        }
+      }
+    }
+  },
+  "initialUpdates" : [ {
+    "scope" : "#/properties/model/properties/fieldNames",
+    "providedOptionName" : "possibleValues",
+    "values" : [ {
+      "indices" : [ ],
+      "value" : [ ]
+    } ]
+  } ],
+  "globalUpdates" : [ {
+    "trigger" : {
+      "id" : "after-open-dialog"
+    },
+    "triggerInitially" : true,
+    "dependencies" : [ "#/properties/model/properties/displayName" ]
+  }, {
+    "trigger" : {
+      "scope" : "#/properties/model/properties/displayName"
+    },
+    "dependencies" : [ "#/properties/model/properties/displayName", "#/properties/model/properties/sObjectName" ]
+  }, {
+    "trigger" : {
+      "scope" : "#/properties/model/properties/fieldNames"
+    },
+    "dependencies" : [ "#/properties/model/properties/fieldNames", "#/properties/model/properties/sObjectName" ]
+  }, {
+    "trigger" : {
+      "scope" : "#/properties/model/properties/sObjectName"
+    },
+    "dependencies" : [ "#/properties/model/properties/displayName", "#/properties/model/properties/fieldNames", "#/properties/model/properties/sObjectName" ]
+  } ]
+}

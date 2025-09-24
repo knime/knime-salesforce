@@ -1,0 +1,7 @@
+autoEnabled=true
+bindingSuggestionsDisabled=true
+eclipse.preferences.version=1
+idePrefixKey=
+projectKey=KNIME_knime-email
+serverId=SonarCloud
+sqPrefixKey=org.knime.email.tests

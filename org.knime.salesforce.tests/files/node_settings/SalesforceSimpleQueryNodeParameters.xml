@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="http://www.knime.org/2008/09/XMLConfig" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.knime.org/2008/09/XMLConfig http://www.knime.org/XMLConfig_2008_09.xsd" key="settings">
+    <entry key="node_file" type="xstring" value="settings.xml"/>
+    <config key="ports">
+        <entry key="port_0" type="xstring" value="org.knime.salesforce.auth.port.SalesforceConnectionPortObject"/>
+    </config>
+    <config key="model">
+        <entry key="display" type="xstring" value="Label"/>
+        <entry key="objectName" type="xstring" value="Account"/>
+        <entry key="where" type="xstring" value="CreatedDate > 2023-01-01"/>
+        <entry key="limit" type="xint" value="1000"/>
+        <entry key="retrieveDeletedArchived" type="xboolean" value="false"/>
+        <config key="fields">
+            <config key="field-0">
+                <entry key="name" type="xstring" value="Id"/>
+                <entry key="label" type="xstring" value="Account ID"/>
+                <entry key="type" type="xstring" value="id"/>
+                <entry key="knimeType" type="xstring" value="org.knime.core.data.def.StringCell"/>
+            </config>
+            <config key="field-1">
+                <entry key="name" type="xstring" value="Name"/>
+                <entry key="label" type="xstring" value="Account Name"/>
+                <entry key="type" type="xstring" value="string"/>
+                <entry key="knimeType" type="xstring" value="org.knime.core.data.def.StringCell"/>
+            </config>
+            <config key="field-2">
+                <entry key="name" type="xstring" value="CreatedDate"/>
+                <entry key="label" type="xstring" value="Created Date"/>
+                <entry key="type" type="xstring" value="datetime"/>
+                <entry key="knimeType" type="xstring" value="org.knime.core.data.time.LocalDateTimeCell"/>
+            </config>
+        </config>
+    </config>
+</config>

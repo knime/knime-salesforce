@@ -23,6 +23,7 @@
 
 	<modules>
 		<module>org.knime.salesforce</module>
+		<module>org.knime.salesforce.tests</module>
 		<module>org.knime.features.salesforce</module>
 		<module>org.knime.update.salesforce</module>
 	</modules>
