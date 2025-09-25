@@ -57,6 +57,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
@@ -65,19 +66,21 @@ import org.knime.core.webui.node.dialog.defaultdialog.util.updates.StateComputat
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.NodeParametersInput;
 import org.knime.node.parameters.Widget;
+import org.knime.node.parameters.migration.Migrate;
 import org.knime.node.parameters.persistence.NodeParametersPersistor;
+import org.knime.node.parameters.persistence.Persist;
 import org.knime.node.parameters.persistence.Persistor;
 import org.knime.node.parameters.updates.ParameterReference;
 import org.knime.node.parameters.updates.StateProvider;
 import org.knime.node.parameters.updates.ValueProvider;
 import org.knime.node.parameters.updates.ValueReference;
 import org.knime.node.parameters.widget.choices.ChoicesProvider;
-import org.knime.node.parameters.widget.choices.Label;
 import org.knime.node.parameters.widget.choices.StringChoice;
 import org.knime.node.parameters.widget.choices.StringChoicesProvider;
 import org.knime.node.parameters.widget.choices.ValueSwitchWidget;
 import org.knime.node.parameters.widget.choices.filter.TwinlistWidget;
 import org.knime.node.parameters.widget.message.TextMessage;
+import org.knime.node.parameters.widget.message.TextMessage.Message;
 import org.knime.node.parameters.widget.message.TextMessage.MessageType;
 import org.knime.node.parameters.widget.number.NumberInputWidget;
 import org.knime.node.parameters.widget.number.NumberInputWidgetValidation.MinValidation.IsNonNegativeValidation;
@@ -86,6 +89,7 @@ import org.knime.salesforce.auth.credential.SalesforceAccessTokenCredential;
 import org.knime.salesforce.auth.port.SalesforceConnectionPortObjectSpec;
 import org.knime.salesforce.rest.SalesforceRESTUtil;
 import org.knime.salesforce.rest.SalesforceResponseException;
+import org.knime.salesforce.rest.Timeouts;
 import org.knime.salesforce.rest.gsonbindings.fields.Field;
 import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.DisplayName;
@@ -100,14 +104,25 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceSimpleQueryNodeParameters.class);
 
-    private static final class ObjectNameValueReference implements ParameterReference<String> {}
-    private static final class FieldNamesValueReference implements ParameterReference<String[]> {}
+    private static final Message NOT_CONNECTED_MESSAGE =
+        new TextMessage.Message("No connection to Salesforce", "No connection could be established. "
+            + "Check the input connection, possibly (re-)execute the predecessor node.", MessageType.WARNING);
 
-    static final class DisplayNameValueReference implements ParameterReference<DisplayNameOption> {}
+    /** return type of a state provider that provides a message and some data. */
+    private record MessageAndData<T>(TextMessage.Message message, T data) {
+    }
 
+    private static final class ObjectNameValueReference implements ParameterReference<String> {
+    }
+
+    private static final class FieldNamesValueReference implements ParameterReference<String[]> {
+    }
+
+    private static final class DisplayNameValueReference implements ParameterReference<DisplayName> {
+    }
 
     /** Intermediate state provider for SObjects (tables in SFDC). */
-    private static class IntermediateSObjectsStateProvider implements StateProvider<SObject[]> {
+    private static class IntermediateSObjectsStateProvider implements StateProvider<MessageAndData<SObject[]>> {
 
         @Override
         public void init(final StateProviderInitializer initializer) {
@@ -115,20 +130,31 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
         }
 
         @Override
-        public SObject[] computeState(final NodeParametersInput context) {
+        public MessageAndData<SObject[]> computeState(final NodeParametersInput context) {
             final var portSpec = context.getInPortSpec(0); // ensure that the input spec is loaded
-            if (portSpec.orElse(null) instanceof SalesforceConnectionPortObjectSpec salesforcePOS) {
-                final var cred = salesforcePOS.getCredential(SalesforceAccessTokenCredential.class).orElse(null);
-                if (cred == null) {
-                    return null; // NOSONAR
-                }
-                try {
-                    return SalesforceRESTUtil.getSObjects(cred, salesforcePOS.getTimeouts());
-                } catch (SalesforceResponseException ex) { // NOSONAR error shown in text message (separate field)
-                    return null; // NOSONAR
-                }
+
+            final Optional<SalesforceConnectionPortObjectSpec> salesforcePOSOpt = portSpec //
+                .filter(SalesforceConnectionPortObjectSpec.class::isInstance) //
+                .map(SalesforceConnectionPortObjectSpec.class::cast);
+            final SalesforceAccessTokenCredential cred = salesforcePOSOpt //
+                .flatMap(s -> s.getCredential(SalesforceAccessTokenCredential.class)) //
+                .orElse(null);
+
+            if (cred == null) {
+                return new MessageAndData<>(NOT_CONNECTED_MESSAGE, new SObject[0]);
             }
-            return null; // NOSONAR
+            try {
+                // TODO currently not cancelable - https://knime-com.atlassian.net/browse/UIEXT-2604
+                return new MessageAndData<>(null,
+                    SalesforceRESTUtil.getSObjects(cred, salesforcePOSOpt.orElseThrow().getTimeouts()));
+            } catch (SalesforceResponseException | RuntimeException ex) { // NOSONAR error shown in text message (separate field)
+                return new MessageAndData<>( //
+                    new TextMessage.Message("Error retrieving objects from Salesforce",
+                        "An error occured while reading data from Salesforce:\n"
+                            + StringUtils.defaultIfBlank(ex.getMessage(), ex.getClass().getSimpleName()),
+                        MessageType.ERROR),
+                    new SObject[0]);
+            }
         }
 
     }
@@ -139,8 +165,9 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
      */
     private static class SalesforceObjectChoicesProvider implements StringChoicesProvider {
 
-        private Supplier<DisplayNameOption> m_displayNameOptionSupplier;
-        private Supplier<SObject[]> m_sObjectStateProvider;
+        private Supplier<DisplayName> m_displayNameOptionSupplier;
+
+        private Supplier<MessageAndData<SObject[]>> m_sObjectStateProvider;
 
         @Override
         public void init(final StateProviderInitializer initializer) {
@@ -150,7 +177,7 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
         @Override
         public List<StringChoice> computeState(final NodeParametersInput context) {
-            SObject[] sObjects = Objects.requireNonNullElse(m_sObjectStateProvider.get(), new SObject[0]);
+            SObject[] sObjects = m_sObjectStateProvider.get().data(); // in case of error, empty array
             Function<SObject, String> labelFunction = m_displayNameOptionSupplier.get().sObjectNameFunction();
             return Arrays.stream(sObjects).filter(SObject::isQueryable).sorted()
                 .map(s -> new StringChoice(s.getName(), labelFunction.apply(s))).toList();
@@ -161,38 +188,42 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     /** Warning message provider if no connection could be established. */
     private static class WarningMessageProvider implements TextMessage.SimpleTextMessageProvider {
 
-        private Supplier<SObject[]> m_sObjectSupplier;
+        private Supplier<MessageAndData<SObject[]>> m_msgAndSObjectSupplier;
 
         @Override
         public void init(final StateProviderInitializer initializer) {
-            m_sObjectSupplier = initializer.computeFromProvidedState(IntermediateSObjectsStateProvider.class);
+            m_msgAndSObjectSupplier = initializer.computeFromProvidedState(IntermediateSObjectsStateProvider.class);
+        }
+
+        private Optional<Message> getMessageOptional() {
+            return Optional.ofNullable(m_msgAndSObjectSupplier.get().message());
         }
 
         @Override
         public boolean showMessage(final NodeParametersInput context) {
-            return m_sObjectSupplier.get() == null;
+            return getMessageOptional().isPresent();
         }
 
         @Override
         public String title() {
-            return "No connection to Salesforce";
+            return getMessageOptional().map(TextMessage.Message::title).orElse("");
         }
 
         @Override
         public String description() {
-            return "No connection to Salesforce could be established. "
-                + "Check the input connection, possibly (re-)execute the node.";
+            return getMessageOptional().map(TextMessage.Message::description).orElse("");
         }
 
         @Override
         public MessageType type() {
-            return MessageType.ERROR;
+            return getMessageOptional().map(TextMessage.Message::type).orElse(TextMessage.MessageType.INFO);
         }
 
     }
 
     /** Intermediate state provider for fields of the selected SObject (column names in SDFC table). */
-    private static final class IntermediateSalesforceFieldsValueProvider implements StateProvider<SalesforceField[]> {
+    private static final class IntermediateSalesforceFieldsValueProvider
+        implements StateProvider<MessageAndData<SalesforceField[]>> {
 
         private Supplier<String> m_sObjectNameValueSupplier;
 
@@ -203,53 +234,60 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
         @SuppressWarnings("restriction")
         @Override
-        public SalesforceField[] computeState(final NodeParametersInput context)
+        public MessageAndData<SalesforceField[]> computeState(final NodeParametersInput context)
             throws StateComputationFailureException {
             final var portSpec = context.getInPortSpec(0); // ensure that the input spec is loaded
-            if (portSpec.orElse(null) instanceof SalesforceConnectionPortObjectSpec salesforcePOS) {
-                final var cred = salesforcePOS.getCredential(SalesforceAccessTokenCredential.class).orElse(null);
-                if (cred == null) {
-                    // this should be already handled by the warning message (separate field)
-                    return new SalesforceField[0];
-                }
-                final String sObjectName = m_sObjectNameValueSupplier.get();
-                Field[] fields;
-                try {
-                    // ignores technical and label name differences, as the API call needs the technical name
-                    final SObject sObject = SObject.of(sObjectName, sObjectName);
-                    fields = SalesforceRESTUtil.getSObjectFields(sObject, cred, salesforcePOS.getTimeouts());
-                } catch (SalesforceResponseException | RuntimeException ex) { // RuntimeException for host not found etc
-                    final String msg = "Error retrieving fields for object '" + sObjectName + "': " + ex.getMessage();
-                    LOGGER.error(msg, ex);
-                    throw new StateComputationFailureException(msg);
-                }
-                Arrays.sort(fields, (a, b) -> a.getLabel().compareTo(b.getLabel()));
-                return Arrays.stream(fields).map(SalesforceField::fromField)
-                    .flatMap(Optional::stream).toArray(SalesforceField[]::new);
+
+            final Optional<SalesforceConnectionPortObjectSpec> salesforcePOSOpt = portSpec //
+                .filter(SalesforceConnectionPortObjectSpec.class::isInstance) //
+                .map(SalesforceConnectionPortObjectSpec.class::cast);
+            final SalesforceAccessTokenCredential cred = salesforcePOSOpt //
+                .flatMap(s -> s.getCredential(SalesforceAccessTokenCredential.class)) //
+                .orElse(null);
+            if (cred == null) {
+                return new MessageAndData<>(NOT_CONNECTED_MESSAGE, new SalesforceField[0]);
             }
-            return new SalesforceField[0];
+            final String sObjectName = m_sObjectNameValueSupplier.get();
+            Field[] fields = new Field[0];
+            try {
+                // ignores technical and label name differences, as the API call needs the technical name
+                final SObject sObject = SObject.of(sObjectName, sObjectName);
+                final Timeouts timeouts = salesforcePOSOpt.orElseThrow().getTimeouts();
+                // TODO currently not cancelable - https://knime-com.atlassian.net/browse/UIEXT-2604
+                fields = SalesforceRESTUtil.getSObjectFields(sObject, cred, timeouts);
+            } catch (SalesforceResponseException | RuntimeException ex) { // RuntimeException for host not found etc
+                final String msg = "Unable to read fields for object '" + sObjectName + "': " + ex.getMessage();
+                LOGGER.error(msg, ex);
+                return new MessageAndData<>(new TextMessage.Message("Unable to read fields", msg, MessageType.ERROR),
+                    new SalesforceField[0]);
+            }
+            Arrays.sort(fields, (a, b) -> a.getLabel().compareTo(b.getLabel()));
+            SalesforceField[] sfFields = Arrays.stream(fields).map(SalesforceField::fromField).flatMap(Optional::stream)
+                .toArray(SalesforceField[]::new);
+            return new MessageAndData<>(null, sfFields);
         }
 
     }
 
     /** Choices provider for twin list (column names in SDFC table), depends on intermediate state above. */
-    private static class SalesforceFieldNamesChoicesProvider implements StringChoicesProvider {
+    private static class FieldNamesChoicesProvider implements StringChoicesProvider {
 
-        private Supplier<DisplayNameOption> m_displayNameOptionSupplier;
-        private Supplier<SalesforceField[]> m_salesforceFieldsValueProvider;
+        private Supplier<DisplayName> m_displayNameOptionSupplier;
+
+        private Supplier<MessageAndData<SalesforceField[]>> m_msgAndSalesforceFieldsValueProvider;
 
         @Override
         public void init(final StateProviderInitializer initializer) {
             initializer.computeBeforeOpenDialog(); // in case the other two do not run (not connected)
-            m_salesforceFieldsValueProvider =
+            m_msgAndSalesforceFieldsValueProvider =
                 initializer.computeFromProvidedState(IntermediateSalesforceFieldsValueProvider.class);
             m_displayNameOptionSupplier = initializer.computeFromValueSupplier(DisplayNameValueReference.class);
         }
 
         @Override
         public List<StringChoice> computeState(final NodeParametersInput context) {
-            final SalesforceField[] salesforceFields =
-                Objects.requireNonNullElse(m_salesforceFieldsValueProvider.get(), new SalesforceField[0]);
+            // empty in case of error
+            final SalesforceField[] salesforceFields = m_msgAndSalesforceFieldsValueProvider.get().data();
             Function<SalesforceField, String> labelFunction = m_displayNameOptionSupplier.get().nameFunction();
             return Arrays.stream(salesforceFields) //
                 .map(s -> new StringChoice(s.getName(), labelFunction.apply(s))) //
@@ -258,25 +296,28 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     }
 
-    /** Value provider for the selected fields; maps the selected fields in the UI to the underlying
-     * 'SalesforceField' when the selection changes. */
+    /**
+     * Value provider for the selected fields; maps the selected fields in the UI to the underlying 'SalesforceField'
+     * when the selection changes.
+     */
     private static class SalesforceFieldValueProvider implements StateProvider<SalesforceField[]> {
 
         private Supplier<String[]> m_fieldNamesSupplier;
-        private Supplier<SalesforceField[]> m_salesforceFieldsSupplier;
+
+        private Supplier<MessageAndData<SalesforceField[]>> m_msgAndSalesforceFieldsSupplier;
 
         @Override
         public void init(final StateProviderInitializer initializer) {
             m_fieldNamesSupplier = initializer.computeFromValueSupplier(FieldNamesValueReference.class);
-            m_salesforceFieldsSupplier =
+            m_msgAndSalesforceFieldsSupplier =
                 initializer.computeFromProvidedState(IntermediateSalesforceFieldsValueProvider.class);
         }
 
         @Override
         public SalesforceField[] computeState(final NodeParametersInput context) {
             final String[] fieldNames = Objects.requireNonNullElse(m_fieldNamesSupplier.get(), new String[0]);
-            final SalesforceField[] salesforceFields =
-                Objects.requireNonNullElse(m_salesforceFieldsSupplier.get(), new SalesforceField[0]);
+            // empty in case of error
+            final SalesforceField[] salesforceFields = m_msgAndSalesforceFieldsSupplier.get().data();
             Map<String, SalesforceField> fieldMap =
                 Arrays.stream(salesforceFields).collect(Collectors.toMap(SalesforceField::getName, f -> f));
             fieldMap.keySet().retainAll(Arrays.asList(fieldNames));
@@ -286,7 +327,7 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     }
 
     /** Value provider to reset the selected fields when the sObject changes. */
-    private static class SalesforceFieldNamesValueProvider implements StateProvider<String[]> {
+    private static class FieldNamesValueProvider implements StateProvider<String[]> {
 
         @Override
         public void init(final StateProviderInitializer initializer) {
@@ -300,57 +341,26 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     }
 
-    /**
-     * Enum for display name options.
-     */
-    enum DisplayNameOption {
-        @Label("Labels")
-        LABEL("Labels"),
-
-        @Label("Technical Names")
-        TECHNICAL_NAME("Technical Names");
-
-        private final String m_text;
-
-        DisplayNameOption(final String text) {
-            m_text = text;
-        }
-
-        @Override
-        public String toString() {
-            return m_text;
-        }
-
-        Function<SalesforceField, String> nameFunction() {
-            return this == LABEL ? SalesforceField::getLabel : SalesforceField::getName;
-        }
-
-        Function<SObject, String> sObjectNameFunction() {
-            return this == LABEL ? SObject::getLabel : SObject::getName;
-        }
-
-    }
-
     @TextMessage(WarningMessageProvider.class)
     Void m_warningMessage;
 
     @Widget(title = "Names based on", description = """
             Determines whether the column names in the output table are derived from the Salesforce field \
             names or labels. Labels are human readable and also used in the Salesforce user interface, e.g. \
-            AI Record Insight ID. Field names are names used in the API, e.g. AiRecordInsightId. Most \
-            standard fields use the same name as the label. Custom fields will have the '__c' suffix. The \
+            <tt>AI Record Insight ID</tt>. Field names are names used in the API, e.g. <tt>AiRecordInsightId</tt>. \
+            Most standard fields use the same name as the label. Custom fields will have the '__c' suffix. The \
             option also controls how fields and objects are displayed in the configuration dialog.""")
     @ValueSwitchWidget
-    @Persistor(DisplayNamePersistor.class)
     @ValueReference(DisplayNameValueReference.class)
-    DisplayNameOption m_displayName = DisplayNameOption.LABEL;
+    @Persist(configKey = SalesforceSimpleQueryNodeSettings.CFG_DISPLAY_TYPE)
+    DisplayName m_displayName = DisplayName.Label;
 
     @Widget(title = "Salesforce Object", description = """
             The objects as available in Salesforce. The list is queried when the dialog is opened. \
             The list only contains objects, which are queryable (a property set in Salesforce).""")
     @ChoicesProvider(SalesforceObjectChoicesProvider.class)
     @ValueReference(ObjectNameValueReference.class)
-    @Persistor(SObjectNamePersistor.class)
+    @Persist(configKey = SalesforceSimpleQueryNodeSettings.CFG_OBJECT_NAME)
     String m_sObjectName = "";
 
     @Widget(title = "Selected Fields", description = """
@@ -359,9 +369,9 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
             date &amp; time, ...), whereby some types may not be supported (for instance Salesforce's anyType). \
             Fields with such unsupported type are hidden in the configuration dialog.""")
     @TwinlistWidget
-    @ChoicesProvider(SalesforceFieldNamesChoicesProvider.class)
+    @ChoicesProvider(FieldNamesChoicesProvider.class)
     @ValueReference(FieldNamesValueReference.class)
-    @ValueProvider(SalesforceFieldNamesValueProvider.class)
+    @ValueProvider(FieldNamesValueProvider.class)
     @Persistor(FieldNamesPersistor.class)
     String[] m_fieldNames = new String[0];
 
@@ -371,81 +381,44 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     SalesforceField[] m_salesforceFields = new SalesforceField[0];
 
     @Widget(title = "WHERE clause", description = """
-            An optional WHERE clause to filter the result set. Examples are Name LIKE 'A%' CreatedDate > \
-            2011-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2011 (find some examples in the Salesforce \
-            online documentation).""")
+            An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > \
+            2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce \
+            online documentation).""", advanced = true)
     @TextAreaWidget
     @Persistor(WhereClausePersistor.class)
-    String m_whereClause = "";
+    String m_whereClause = null; // NOSONAR (explicit assignment)
 
-    @Widget(title = "LIMIT result set", description =
-            "An optional integer to constraint the result set to a maximum number as specified.")
+    @Widget(title = "LIMIT result set",
+        description = "An optional integer to constraint the result set to a maximum number as specified.",
+        advanced = true)
     @NumberInputWidget(minValidation = IsNonNegativeValidation.class)
     @Persistor(LimitPersistor.class)
     Optional<Integer> m_limit = Optional.empty();
 
     @Widget(title = "Also retrieve deleted and archived records", description = """
             When selected, the node will use Salesforce's queryAll endpoint to include deleted and archived \
-            records in the results.""")
-    @Persistor(RetrieveDeletedArchivedPersistor.class)
+            records in the results.""", advanced = true)
+    @Persist(configKey = SalesforceSimpleQueryNodeSettings.CFG_RETRIEVE_DELETED_ARCHIVED)
+    @Migrate(loadDefaultIfAbsent = true)
     boolean m_retrieveDeletedAndArchived = false; // NOSONAR (explicit assignment)
 
-    static final class DisplayNamePersistor implements NodeParametersPersistor<DisplayNameOption> {
-
-        @Override
-        public DisplayNameOption load(final NodeSettingsRO settings) throws InvalidSettingsException {
-            String value = settings.getString("display", DisplayName.Label.name());
-            return DisplayName.valueOf(value) == DisplayName.Label ?
-                    DisplayNameOption.LABEL : DisplayNameOption.TECHNICAL_NAME;
-        }
-
-        @Override
-        public void save(final DisplayNameOption obj, final NodeSettingsWO settings) {
-            DisplayName legacyValue = obj == DisplayNameOption.LABEL ? DisplayName.Label : DisplayName.TechnialName;
-            settings.addString("display", legacyValue.name());
-        }
-
-        @Override
-        public String[][] getConfigPaths() {
-            return new String[][]{{"display"}};
-        }
-    }
-
-    static final class SObjectNamePersistor implements NodeParametersPersistor<String> {
-
-        @Override
-        public String load(final NodeSettingsRO settings) throws InvalidSettingsException {
-            return settings.getString("objectName", "");
-        }
-
-        @Override
-        public void save(final String obj, final NodeSettingsWO settings) {
-            settings.addString("objectName", obj == null ? "" : obj);
-        }
-
-        @Override
-        public String[][] getConfigPaths() {
-            return new String[][]{{"objectName"}};
-        }
-    }
-
     static final class WhereClausePersistor implements NodeParametersPersistor<String> {
+        // needed because @Persist does not support empty string -> null conversion
 
         @Override
         public String load(final NodeSettingsRO settings) throws InvalidSettingsException {
-            String value = settings.getString("where", null);
-            return value == null ? "" : value;
+            final String value = settings.getString(SalesforceSimpleQueryNodeSettings.CFG_WHERE_CLAUSE, null);
+            return Objects.requireNonNullElse(value, "");
         }
 
         @Override
         public void save(final String obj, final NodeSettingsWO settings) {
-            String value = (obj == null || obj.trim().isEmpty()) ? null : obj.trim();
-            settings.addString("where", value);
+            settings.addString(SalesforceSimpleQueryNodeSettings.CFG_WHERE_CLAUSE, StringUtils.trimToNull(obj));
         }
 
         @Override
         public String[][] getConfigPaths() {
-            return new String[][]{{"where"}};
+            return new String[][]{{SalesforceSimpleQueryNodeSettings.CFG_WHERE_CLAUSE}};
         }
     }
 
@@ -453,36 +426,18 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
         @Override
         public Optional<Integer> load(final NodeSettingsRO settings) throws InvalidSettingsException {
-            int value = settings.getInt("limit", -1);
+            int value = settings.getInt(SalesforceSimpleQueryNodeSettings.CFG_LIMIT_CLAUSE, -1);
             return value < 0 ? Optional.empty() : Optional.of(Integer.valueOf(value));
         }
 
         @Override
         public void save(final Optional<Integer> obj, final NodeSettingsWO settings) {
-            settings.addInt("limit", obj.orElse(-1));
+            settings.addInt(SalesforceSimpleQueryNodeSettings.CFG_LIMIT_CLAUSE, obj.orElse(-1));
         }
 
         @Override
         public String[][] getConfigPaths() {
-            return new String[][]{{"limit"}};
-        }
-    }
-
-    static final class RetrieveDeletedArchivedPersistor implements NodeParametersPersistor<Boolean> {
-
-        @Override
-        public Boolean load(final NodeSettingsRO settings) throws InvalidSettingsException {
-            return settings.getBoolean("retrieveDeletedArchived", false);
-        }
-
-        @Override
-        public void save(final Boolean obj, final NodeSettingsWO settings) {
-            settings.addBoolean("retrieveDeletedArchived", obj == null ? false : obj);
-        }
-
-        @Override
-        public String[][] getConfigPaths() {
-            return new String[][]{{"retrieveDeletedArchived"}};
+            return new String[][]{{SalesforceSimpleQueryNodeSettings.CFG_LIMIT_CLAUSE}};
         }
     }
 
@@ -509,7 +464,7 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
         @Override
         public void save(final SalesforceField[] fields, final NodeSettingsWO settings) {
-            NodeSettingsWO fieldsSettings = settings.addNodeSettings("fields");
+            NodeSettingsWO fieldsSettings = settings.addNodeSettings(SalesforceSimpleQueryNodeSettings.CFG_FIELDS);
             if (fields != null) {
                 for (int i = 0; i < fields.length; i++) {
                     NodeSettingsWO fieldSettings = fieldsSettings.addNodeSettings("field-" + i);
@@ -530,8 +485,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
         @Override
         public String[] load(final NodeSettingsRO settings) throws InvalidSettingsException {
             return Arrays.stream(new SalesforceFieldArrayPersistor().load(settings)) //
-                    .map(l -> l.getName()) //
-                    .toArray(String[]::new);
+                .map(l -> l.getName()) //
+                .toArray(String[]::new);
         }
 
         @Override

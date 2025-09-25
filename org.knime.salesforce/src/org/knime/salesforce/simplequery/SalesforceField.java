@@ -124,5 +124,4 @@ final class SalesforceField {
     public String toString() {
         return String.format("\"%s\" (%s)", m_name, m_type);
     }
-
 }

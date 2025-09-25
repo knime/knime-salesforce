@@ -48,6 +48,12 @@
  */
 package org.knime.salesforce.simplequery;
 
+import static org.knime.node.impl.description.PortDescription.fixedPort;
+
+import java.util.List;
+import java.util.Map;
+
+import org.knime.core.node.NodeDescription;
 import org.knime.core.node.NodeDialogPane;
 import org.knime.core.node.NodeFactory;
 import org.knime.core.node.NodeView;
@@ -55,17 +61,12 @@ import org.knime.core.webui.node.dialog.NodeDialog;
 import org.knime.core.webui.node.dialog.NodeDialogFactory;
 import org.knime.core.webui.node.dialog.NodeDialogManager;
 import org.knime.core.webui.node.dialog.SettingsType;
-import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeDialog;
 import org.knime.core.webui.node.dialog.defaultdialog.DefaultKaiNodeInterface;
-import org.knime.core.node.NodeFactory.NodeType;
+import org.knime.core.webui.node.dialog.defaultdialog.DefaultNodeDialog;
 import org.knime.core.webui.node.dialog.kai.KaiNodeInterface;
 import org.knime.core.webui.node.dialog.kai.KaiNodeInterfaceFactory;
-import org.knime.core.node.NodeDescription;
 import org.knime.node.impl.description.DefaultNodeDescriptionUtil;
-import java.util.Map;
 import org.knime.node.impl.description.PortDescription;
-import java.util.List;
-import static org.knime.node.impl.description.PortDescription.fixedPort;
 
 /**
  *
@@ -74,7 +75,8 @@ import static org.knime.node.impl.description.PortDescription.fixedPort;
  * @author AI Migration Pipeline v1.1
  */
 @SuppressWarnings("restriction")
-public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<SalesforceSimpleQueryNodeModel> implements NodeDialogFactory, KaiNodeInterfaceFactory {
+public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<SalesforceSimpleQueryNodeModel>
+    implements NodeDialogFactory, KaiNodeInterfaceFactory {
 
     @Override
     public SalesforceSimpleQueryNodeModel createNodeModel() {
@@ -87,7 +89,8 @@ public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<Salesfor
     }
 
     @Override
-    public NodeView<SalesforceSimpleQueryNodeModel> createNodeView(final int viewIndex, final SalesforceSimpleQueryNodeModel nodeModel) {
+    public NodeView<SalesforceSimpleQueryNodeModel> createNodeView(final int viewIndex,
+        final SalesforceSimpleQueryNodeModel nodeModel) {
         throw new IllegalStateException("Not to be called");
     }
 

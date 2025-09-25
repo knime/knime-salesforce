@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -62,6 +63,8 @@ import org.knime.core.node.NodeSettings;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
 import org.knime.core.node.util.CheckUtils;
+import org.knime.node.parameters.widget.choices.Label;
+import org.knime.salesforce.rest.gsonbindings.sobjects.SObject;
 
 /**
  *
@@ -71,23 +74,45 @@ final class SalesforceSimpleQueryNodeSettings {
 
     /** Column names in output and labels in the UI are shown as either technical names or labels. */
     enum DisplayName {
-        TechnialName,
-        Label;
+            @Label("Labels")
+            Label("Labels"),
+
+            @Label("Technical Names")
+            TechnialName("Technical Names");
+
+        private final String m_text;
+
+        DisplayName(final String text) {
+            m_text = text;
+        }
+
+        @Override
+        public String toString() {
+            return m_text;
+        }
+
+        Function<SalesforceField, String> nameFunction() {
+            return this == Label ? SalesforceField::getLabel : SalesforceField::getName;
+        }
+
+        Function<SObject, String> sObjectNameFunction() {
+            return this == TechnialName ? SObject::getLabel : SObject::getName;
+        }
 
         static final Optional<DisplayName> of(final String s) {
             return Arrays.stream(values()).filter(d -> Objects.equals(d.name(), s)).findFirst();
         }
     }
 
-    private static final String CFG_OBJECT_NAME = "objectName";
-    private static final String CFG_FIELDS = "fields";
+    static final String CFG_OBJECT_NAME = "objectName";
+    static final String CFG_FIELDS = "fields";
     private static final String CFG_FIELD_NAME = "fieldName";
     private static final String CFG_FIELD_LABEL = "fieldLabel";
     private static final String CFG_FIELD_TYPE = "fieldType";
-    private static final String CFG_WHERE_CLAUSE = "where";
-    private static final String CFG_LIMIT_CLAUSE = "limit";
-    private static final String CFG_DISPLAY_TYPE = "display";
-    private static final String CFG_RETRIEVE_DELETED_ARCHIVED = "retrieveDeletedArchived";
+    static final String CFG_WHERE_CLAUSE = "where";
+    static final String CFG_LIMIT_CLAUSE = "limit";
+    static final String CFG_DISPLAY_TYPE = "display";
+    static final String CFG_RETRIEVE_DELETED_ARCHIVED = "retrieveDeletedArchived";
 
     private String m_objectName;
     private SalesforceField[] m_objectFields = new SalesforceField[0];

@@ -1,7 +1,7 @@
 {
   "data" : {
     "model" : {
-      "displayName" : "LABEL",
+      "displayName" : "Label",
       "sObjectName" : "Account",
       "fieldNames" : [ ],
       "salesforceFields" : [ ],
@@ -18,15 +18,15 @@
         "properties" : {
           "displayName" : {
             "oneOf" : [ {
-              "const" : "LABEL",
+              "const" : "Label",
               "title" : "Labels"
             }, {
-              "const" : "TECHNICAL_NAME",
+              "const" : "TechnialName",
               "title" : "Technical Names"
             } ],
             "title" : "Names based on",
-            "description" : "Determines whether the column names in the output table are derived from the Salesforce field names or labels. Labels are human readable and also used in the Salesforce user interface, e.g. AI Record Insight ID. Field names are names used in the API, e.g. AiRecordInsightId. Most standard fields use the same name as the label. Custom fields will have the '__c' suffix. The option also controls how fields and objects are displayed in the configuration dialog.",
-            "default" : "LABEL"
+            "description" : "Determines whether the column names in the output table are derived from the Salesforce field names or labels. Labels are human readable and also used in the Salesforce user interface, e.g. <tt>AI Record Insight ID</tt>. Field names are names used in the API, e.g. <tt>AiRecordInsightId</tt>. Most standard fields use the same name as the label. Custom fields will have the '__c' suffix. The option also controls how fields and objects are displayed in the configuration dialog.",
+            "default" : "Label"
           },
           "fieldNames" : {
             "type" : "array",
@@ -69,8 +69,7 @@
           "whereClause" : {
             "type" : "string",
             "title" : "WHERE clause",
-            "description" : "An optional WHERE clause to filter the result set. Examples are Name LIKE 'A%' CreatedDate > 2011-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2011 (find some examples in the Salesforce online documentation).",
-            "default" : ""
+            "description" : "An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > 2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce online documentation)."
           }
         }
       }
@@ -109,7 +108,8 @@
       "scope" : "#/properties/model/properties/whereClause",
       "options" : {
         "rows" : 4,
-        "format" : "textArea"
+        "format" : "textArea",
+        "isAdvanced" : true
       }
     }, {
       "type" : "Control",
@@ -131,6 +131,7 @@
             }
           }
         },
+        "isAdvanced" : true,
         "hideOnNull" : true,
         "default" : 0
       }
@@ -138,7 +139,8 @@
       "type" : "Control",
       "scope" : "#/properties/model/properties/retrieveDeletedAndArchived",
       "options" : {
-        "format" : "checkbox"
+        "format" : "checkbox",
+        "isAdvanced" : true
       }
     } ]
   },
@@ -150,10 +152,10 @@
         "properties" : {
           "warningMessage" : { },
           "displayName" : {
-            "configPaths" : [ [ "display" ] ]
+            "configKey" : "display"
           },
           "sObjectName" : {
-            "configPaths" : [ [ "objectName" ] ]
+            "configKey" : "objectName"
           },
           "fieldNames" : {
             "configPaths" : [ ]
@@ -168,7 +170,7 @@
             "configPaths" : [ [ "limit" ] ]
           },
           "retrieveDeletedAndArchived" : {
-            "configPaths" : [ [ "retrieveDeletedArchived" ] ]
+            "configKey" : "retrieveDeletedArchived"
           }
         }
       }
