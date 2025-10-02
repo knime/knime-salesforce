@@ -69,7 +69,7 @@
           "whereClause" : {
             "type" : "string",
             "title" : "WHERE clause",
-            "description" : "An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > 2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce online documentation)."
+            "description" : "An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > 2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce <a href=\"https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_conditionexpression.htm\">online documentation)</a>."
           }
         }
       }

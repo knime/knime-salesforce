@@ -48,6 +48,7 @@ package org.knime.salesforce.simplequery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,6 +67,7 @@ import org.knime.core.webui.node.dialog.defaultdialog.util.updates.StateComputat
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.NodeParametersInput;
 import org.knime.node.parameters.Widget;
+import org.knime.node.parameters.migration.LoadDefaultsForAbsentFields;
 import org.knime.node.parameters.migration.Migrate;
 import org.knime.node.parameters.persistence.NodeParametersPersistor;
 import org.knime.node.parameters.persistence.Persist;
@@ -100,6 +102,7 @@ import org.knime.salesforce.simplequery.SalesforceSimpleQueryNodeSettings.Displa
  * @author Bernd Wiswedel, KNIME GmbH, Konstanz, Germany
  * @author AI Migration Pipeline v1.1
  */
+@LoadDefaultsForAbsentFields // for new instances of the node when dragged onto the workbench
 final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     private static final NodeLogger LOGGER = NodeLogger.getLogger(SalesforceSimpleQueryNodeParameters.class);
@@ -318,8 +321,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
             final String[] fieldNames = Objects.requireNonNullElse(m_fieldNamesSupplier.get(), new String[0]);
             // empty in case of error
             final SalesforceField[] salesforceFields = m_msgAndSalesforceFieldsSupplier.get().data();
-            Map<String, SalesforceField> fieldMap =
-                Arrays.stream(salesforceFields).collect(Collectors.toMap(SalesforceField::getName, f -> f));
+            Map<String, SalesforceField> fieldMap = Arrays.stream(salesforceFields).collect( //
+                Collectors.toMap(SalesforceField::getName, f -> f, (a, b) -> a, LinkedHashMap::new));
             fieldMap.keySet().retainAll(Arrays.asList(fieldNames));
             return fieldMap.values().toArray(new SalesforceField[0]);
         }
@@ -383,7 +386,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     @Widget(title = "WHERE clause", description = """
             An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > \
             2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce \
-            online documentation).""", advanced = true)
+            <a href="https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/\
+            sforce_api_calls_soql_select_conditionexpression.htm">online documentation)</a>.""", advanced = true)
     @TextAreaWidget
     @Persistor(WhereClausePersistor.class)
     String m_whereClause = null; // NOSONAR (explicit assignment)

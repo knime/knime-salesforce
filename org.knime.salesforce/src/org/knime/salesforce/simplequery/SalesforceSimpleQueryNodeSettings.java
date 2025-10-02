@@ -78,7 +78,7 @@ final class SalesforceSimpleQueryNodeSettings {
             Label("Labels"),
 
             @Label("Technical Names")
-            TechnialName("Technical Names");
+            TechnialName("Technical Names"); // Note: can't fix the typo - part of node configuration
 
         private final String m_text;
 
@@ -96,7 +96,7 @@ final class SalesforceSimpleQueryNodeSettings {
         }
 
         Function<SObject, String> sObjectNameFunction() {
-            return this == TechnialName ? SObject::getLabel : SObject::getName;
+            return this == TechnialName ? SObject::getName : SObject::getLabel;
         }
 
         static final Optional<DisplayName> of(final String s) {
