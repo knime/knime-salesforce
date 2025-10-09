@@ -104,10 +104,10 @@ public final class SalesforceSimpleQueryNodeFactory extends NodeFactory<Salesfor
             Read fields from a Salesforce object
             """;
     private static final String FULL_DESCRIPTION = """
-            Read fields from a Salesforce object. In the configuration dialog select the object type (i.e. a table
-                in Salesforce such Account) and the corresponding object fields (columns, such as Account Name); the
-                data is returned in a KNIME table at the output. An optional WHERE and LIMIT statement can be specified
-                to narrow the search result.
+            <p> Read fields from a Salesforce object. In the configuration dialog select the object type (i.e. a
+                table in Salesforce such <i>Account</i>) and the corresponding object fields (columns, such as
+                <i>Account Name</i>); the data is returned in a KNIME table at the output. An optional <i>WHERE</i> and
+                <i>LIMIT</i> statement can be specified to narrow the search result. </p>
             """;
     private static final List<PortDescription> INPUT_PORTS = List.of(
             fixedPort("Authentication", """

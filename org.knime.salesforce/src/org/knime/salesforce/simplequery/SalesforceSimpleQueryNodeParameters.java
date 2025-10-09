@@ -349,8 +349,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     @Widget(title = "Names based on", description = """
             Determines whether the column names in the output table are derived from the Salesforce field \
-            names or labels. Labels are human readable and also used in the Salesforce user interface, e.g. \
-            <tt>AI Record Insight ID</tt>. Field names are names used in the API, e.g. <tt>AiRecordInsightId</tt>. \
+            <i>names</i> or <i>labels</i>. Labels are human readable and also used in the Salesforce user interface, e.g. \
+            <i>AI Record Insight ID</i>. Field names are names used in the API, e.g. <i>AiRecordInsightId</i>. \
             Most standard fields use the same name as the label. Custom fields will have the '__c' suffix. The \
             option also controls how fields and objects are displayed in the configuration dialog.""")
     @ValueSwitchWidget
@@ -360,7 +360,7 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
 
     @Widget(title = "Salesforce Object", description = """
             The objects as available in Salesforce. The list is queried when the dialog is opened. \
-            The list only contains objects, which are queryable (a property set in Salesforce).""")
+            The list only contains objects, which are <i>queryable</i> (a property set in Salesforce).""")
     @ChoicesProvider(SalesforceObjectChoicesProvider.class)
     @ValueReference(ObjectNameValueReference.class)
     @Persist(configKey = SalesforceSimpleQueryNodeSettings.CFG_OBJECT_NAME)
@@ -369,7 +369,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     @Widget(title = "Selected Fields", description = """
             The fields defined for the selected object. Move the fields that should be retrieved into the \
             'Include' list. The field's type is mapped to a native KNIME type (string, int, double, boolean, \
-            date &amp; time, ...), whereby some types may not be supported (for instance Salesforce's anyType). \
+            date &amp; time, ...), whereby some types may not be supported (for instance Salesforce's \
+            <i>anyType</i>). \
             Fields with such unsupported type are hidden in the configuration dialog.""")
     @TwinlistWidget
     @ChoicesProvider(FieldNamesChoicesProvider.class)
@@ -384,8 +385,8 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     SalesforceField[] m_salesforceFields = new SalesforceField[0];
 
     @Widget(title = "WHERE clause", description = """
-            An optional WHERE clause to filter the result set. Examples are <tt>Name LIKE 'A%' CreatedDate > \
-            2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</tt> (find some examples in the Salesforce \
+            An optional WHERE clause to filter the result set. Examples are <pre>Name LIKE 'A%' CreatedDate &gt; \
+            2024-04-26T10:00:00-08:00 CALENDAR_YEAR(CreatedDate) = 2024</pre> (find some examples in the Salesforce \
             <a href="https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/\
             sforce_api_calls_soql_select_conditionexpression.htm">online documentation)</a>.""", advanced = true)
     @TextAreaWidget
@@ -400,7 +401,9 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
     Optional<Integer> m_limit = Optional.empty();
 
     @Widget(title = "Also retrieve deleted and archived records", description = """
-            When selected, the node will use Salesforce's queryAll endpoint to include deleted and archived \
+            When selected, the node will use Salesforce's <a \
+            href="https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/resources_queryall.htm"> \
+            queryAll</a> endpoint to include deleted and archived \
             records in the results.""", advanced = true)
     @Persist(configKey = SalesforceSimpleQueryNodeSettings.CFG_RETRIEVE_DELETED_ARCHIVED)
     @Migrate(loadDefaultIfAbsent = true)
