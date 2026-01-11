@@ -91,7 +91,6 @@ import com.github.scribejava.core.pkce.PKCE;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractFuture;
 
-import jakarta.json.JsonString;
 import jakarta.json.stream.JsonParsingException;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.MediaType;
@@ -194,8 +193,6 @@ public final class SalesforceAuthenticationUtil {
 
         try (final AuthenticationCloseable c = ThreadLocalHTTPAuthenticator.suppressAuthenticationPopups();
             final var response = client.form(new Form(formData))) {
-            final var responseStr = response.readEntity(String.class);
-            final var json = SalesforceRESTUtil.readAsJsonStructure(responseStr).asJsonObject();
 
             if (response.getStatusInfo().getFamily() != Status.Family.SUCCESSFUL) {
                 if (response.getStatus() == 400) {
@@ -203,19 +200,16 @@ public final class SalesforceAuthenticationUtil {
                     throw new IOException("Authentication failed. Please provide valid credentials.");
                 }
 
-                final var errorDescriptionValue = json.getValue("/error_description");
-                final var errorDescription =  errorDescriptionValue != null//
-                        ? ((JsonString)errorDescriptionValue).getString()//
-                        : null;
+                final String error = SalesforceRESTUtil.readErrorFromResponseBody(response) //
+                        .orElse(response.getStatusInfo().getReasonPhrase());
 
-                throw new IOException(//
-                    String.format("Authentication failed (HTTP %d: %s)",//
-                        response.getStatus(), //
-                        errorDescription != null//
-                            ? errorDescription//
-                            : response.getStatusInfo().getReasonPhrase()));
+                throw new IOException(
+                    String.format("Authentication failed (HTTP %d: %s)", response.getStatus(), error));
             }
+            CheckUtils.check(response.hasEntity(), IOException::new, () -> response.getStatusInfo().getReasonPhrase());
 
+            final var responseStr = response.readEntity(String.class);
+            final var json = SalesforceRESTUtil.readAsJsonStructure(responseStr).asJsonObject();
             final var accessToken = json.getString("access_token");
             final var tokenType = json.getString("token_type");
             final var instanceUrl = json.getString("instance_url");
