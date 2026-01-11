@@ -54,8 +54,12 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.cxf.jaxrs.client.WebClient;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.util.JsonUtil;
 import org.knime.core.util.ThreadLocalHTTPAuthenticator;
@@ -283,16 +287,51 @@ public final class SalesforceRESTUtil {
             timeouts);
     }
 
-    /** Try to parse exception/errors from Salesforce.
-     * @param response Error response
-     * @return The concrete error messages.
+    /**
+     * Try to parse exception/errors from Salesforce response body. Supports multiple content types:
+     * <ul>
+     * <li>application/json - Parses JSON error structure</li>
+     * <li>text/html - Extracts text from HTML (title or body)</li>
+     * <li>other types - Returns raw response body</li>
+     * </ul>
+     *
+     * @param response Error response with Content-Type header set
+     * @return The concrete error messages, or the raw response body if parsing fails
      */
     public static Optional<String> readErrorFromResponseBody(final Response response) {
+        final String responseBody = response.readEntity(String.class);
+        final var mediaType = response.getMediaType();
 
-        final var jsonError = readAsJsonStructure(response.readEntity(String.class));
+        // Try JSON if media type matches
+        if (mediaType != null && mediaType.isCompatible(MediaType.APPLICATION_JSON_TYPE)) {
+            return tryParseJsonError(responseBody);
+        }
 
-        // the list of pointers will probably grow over time.
-        for (String pointerS : Arrays.asList("/0/message")) {
+        // Try HTML if media type matches
+        if (mediaType != null && mediaType.isCompatible(MediaType.TEXT_HTML_TYPE)) {
+            return tryExtractHtmlError(responseBody);
+        }
+
+        // For other types or no media type, try JSON as fallback
+        if (mediaType == null) {
+            LOG.debug("No Content-Type header in error response, attempting JSON parsing");
+            return tryParseJsonError(responseBody);
+        }
+        return Optional.of(responseBody).filter(StringUtils::isNotBlank);
+    }
+
+    /**
+     * Attempts to parse JSON error response following Salesforce API error format.
+     *
+     * @param responseBody JSON response body
+     * @return Error message if found, empty otherwise
+     */
+    private static Optional<String> tryParseJsonError(final String responseBody) {
+        final JsonStructure jsonError = readAsJsonStructure(responseBody);
+
+        // "0/message" https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/errorcodes.htm
+        // "error_description" OAuth2 error responses (https://www.rfc-editor.org/rfc/rfc6749#section-5.2)
+        for (String pointerS : Arrays.asList("/0/message", "/error_description")) {
             JsonPointer pointer = JsonUtil.getProvider().createPointer(pointerS);
             if (pointer.containsValue(jsonError)) {
                 JsonValue message = pointer.getValue(jsonError);
@@ -303,5 +342,37 @@ public final class SalesforceRESTUtil {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Attempts to extract error message from HTML response body using JSoup.
+     * Tries to extract from title, h1/h2 headers, or body text in that order.
+     * Note: Charset handling is done by the HTTP layer when reading the response body.
+     * The response is already decoded to a String using the Content-Type charset.
+     *
+     * @param responseBody HTML response body (already decoded by HTTP layer)
+     * @return Error message extracted from HTML, or raw body if extraction fails
+     */
+    private static Optional<String> tryExtractHtmlError(final String responseBody) {
+        try {
+            // Note: charset is NOT passed to JSoup because responseBody is already a decoded String.
+            // The HTTP layer (response.readEntity) already decoded the bytes using the Content-Type charset.
+            final Document doc = Jsoup.parse(responseBody);
+
+            return Optional.ofNullable(doc.title()) //
+                .filter(StringUtils::isNotBlank) //
+                .or(() -> Optional.ofNullable(doc.selectFirst("h1, h2")) //
+                    .map(Element::text) //
+                    .filter(StringUtils::isNotBlank)) //
+                .or(() -> Optional.ofNullable(doc.body()) //
+                    .map(Element::text) //
+                    .filter(StringUtils::isNotBlank) //
+                    .map(bodyText -> StringUtils.abbreviate(bodyText, 256))) //
+                .or(() -> Optional.of(responseBody).filter(StringUtils::isNotBlank));
+
+        } catch (final Exception e) { // NOSONAR - intentionally catching broad exception
+            LOG.debug("Failed to extract error message from HTML response", e);
+            return Optional.of(responseBody).filter(StringUtils::isNotBlank);
+        }
     }
 }
