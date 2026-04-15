@@ -63,7 +63,7 @@ import org.knime.core.node.InvalidSettingsException;
 import org.knime.core.node.NodeLogger;
 import org.knime.core.node.NodeSettingsRO;
 import org.knime.core.node.NodeSettingsWO;
-import org.knime.core.webui.node.dialog.defaultdialog.util.updates.StateComputationFailureException;
+import org.knime.node.parameters.updates.StateComputationAbortException;
 import org.knime.node.parameters.NodeParameters;
 import org.knime.node.parameters.NodeParametersInput;
 import org.knime.node.parameters.Widget;
@@ -238,7 +238,7 @@ final class SalesforceSimpleQueryNodeParameters implements NodeParameters {
         @SuppressWarnings("restriction")
         @Override
         public MessageAndData<SalesforceField[]> computeState(final NodeParametersInput context)
-            throws StateComputationFailureException {
+            throws StateComputationAbortException {
             final var portSpec = context.getInPortSpec(0); // ensure that the input spec is loaded
 
             final Optional<SalesforceConnectionPortObjectSpec> salesforcePOSOpt = portSpec //
